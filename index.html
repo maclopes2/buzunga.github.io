@@ -12,14 +12,15 @@
         }
 
         #map {
-            height: calc(100% - 60px);
+            height: calc(100% - 100px); /* Aumentei a altura do mapa para deixar espaço para o novo botão */
             width: 100%;
         }
 
-        #search {
+        #search, #locationBtnContainer {
             padding: 10px;
             background-color: #fff;
             box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 10px 0;
         }
 
         .custom-marker {
@@ -41,9 +42,9 @@
         /* Estilos responsivos */
         @media (max-width: 768px) {
             #map {
-                height: calc(100% - 120px);
+                height: calc(100% - 160px); /* Aumentei a altura do mapa para dispositivos móveis */
             }
-            #search {
+            #search, #locationBtnContainer {
                 margin: 10px;
                 padding: 10px;
                 font-size: 14px;
@@ -71,6 +72,9 @@
         <label for="busLine">Digite os números separados por vírgulas </label>
         <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
         <button onclick="filterBuses()">Buscar</button>
+    </div>
+    <div id="locationBtnContainer">
+        <button onclick="locateUser()">Localização Atual</button>
     </div>
     <div id="map"></div>
 
@@ -158,7 +162,7 @@
 
         function onLocationFound(e) {
             var latlng = e.latlng;
-            map.setView(latlng, 15); // Ajusta o zoom inicial
+            map.setView(latlng, 13); // Ajustei o zoom para 13
 
             if (userMarker) {
                 userMarker.setLatLng(latlng);
@@ -175,14 +179,18 @@
 
         function onLocationError(e) {
             console.log(e.message);
-            map.setView([-22.9068, -43.1729], 15); // Centraliza no Rio de Janeiro caso a localização do usuário não seja encontrada
+            map.setView([-22.9068, -43.1729], 13); // Centraliza no Rio de Janeiro caso a localização do usuário não seja encontrada
+        }
+
+        function locateUser() {
+            map.locate({ setView: true, maxZoom: 13 });
         }
 
         map.on('locationfound', onLocationFound);
         map.on('locationerror', onLocationError);
 
-        // Solicita a localização do usuário
-        map.locate({ setView: true, maxZoom: 15, watch: true });
+        // Solicita a localização do usuário ao carregar a página
+        locateUser();
 
         // Atualiza a localização dos ônibus a cada 15 segundos
         setInterval(updateBuses, 15000);
