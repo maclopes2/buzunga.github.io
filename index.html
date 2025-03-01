@@ -175,17 +175,17 @@
 
         function onLocationError(e) {
             console.log(e.message);
-            map.setView([-22.9068, -43.1729], 15); // Centraliza no Rio de Janeiro caso a localização do usuário não seja encontrada
+            map.setView([-22.9068, -43.1729], 12); // Centraliza no Rio de Janeiro caso a localização do usuário não seja encontrada
         }
 
         map.on('locationfound', onLocationFound);
         map.on('locationerror', onLocationError);
 
         // Solicita a localização do usuário
-        map.locate({ setView: true, maxZoom: 15, watch: true });
+        map.locate({ setView: true, maxZoom: 12, watch: true });
 
-        // Atualiza a localização dos ônibus a cada 15 segundos
-        setInterval(updateBuses, 15000);
+        // Atualiza a localização dos ônibus a cada 5 segundos
+        setInterval(updateBuses, 5000);
         updateBuses(); // Chama a função pela primeira vez imediatamente
 
     </script>
