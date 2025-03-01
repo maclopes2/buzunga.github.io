@@ -158,7 +158,7 @@
 
         function onLocationFound(e) {
             var latlng = e.latlng;
-            map.setView(latlng, 15); // Ajusta o zoom inicial
+            map.setView(latlng, 12); // Ajusta o zoom inicial
 
             if (userMarker) {
                 userMarker.setLatLng(latlng);
@@ -182,7 +182,7 @@
         map.on('locationerror', onLocationError);
 
         // Solicita a localização do usuário
-        map.locate({ setView: true, maxZoom: 12, watch: true });
+        map.locate({ setView: true, maxZoom: 15, watch: true });
 
         // Atualiza a localização dos ônibus a cada 5 segundos
         setInterval(updateBuses, 5000);
