@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-time Bus Tracking</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            height: calc(100% - 60px);
+            width: 100%;
+        }
+
+        #search {
+            padding: 10px;
+            background-color: #fff;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .custom-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            background-color: #333;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 30px;
+            border: 1px solid #FFFFFF;
+        }
+
+        /* Estilos responsivos */
+        @media (max-width: 768px) {
+            #map {
+                height: calc(100% - 120px);
+            }
+            #search {
+                margin: 10px;
+                padding: 10px;
+                font-size: 14px;
+            }
+            .custom-marker {
+                width: 25px;
+                height: 25px;
+                line-height: 25px;
+                font-size: 10px;
+            }
+            label, input, button {
+                display: block;
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            input, button {
+                padding: 10px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="search">
+        <label for="busLine">Buzunga Rio! Ache seu ônibus: </label>
+        <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
+        <button onclick="filterBuses()">Buscar</button>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+        // Inicializa o mapa
+        var map = L.map('map');
+
+        // Adiciona o tile layer do OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        var busMarkers = {};
+        var busesData = [];
+        var userMarker;
+
+        // Função para gerar cores aleatórias para as linhas
+        function getRandomColor() {
+            var letters = '0123456789ABCDEF';
+            var color = '#';
+            for (var i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        // Guarda as cores das linhas
+        var lineColors = {};
+
+        function updateBuses() {
+            axios.get('https://dados.mobilidade.rio/gps/sppo')
+                .then(function (response) {
+                    busesData = response.data;
+                    console.log("Total de ônibus recebidos:", busesData.length); // Log do total de ônibus recebidos
+                    filterBuses(); // Atualiza os marcadores filtrados
+                })
+                .catch(function (error) {
+                    console.log(error);
+                });
+        }
+
+        function filterBuses() {
+            var searchValue = document.getElementById('busLine').value.trim();
+            var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
+
+            var filteredBuses = busesData.filter(function(bus) {
+                return searchLines.includes(bus.linha);
+            });
+
+            console.log("Total de ônibus filtrados:", filteredBuses.length); // Log do total de ônibus filtrados
+
+            // Remove os marcadores existentes
+            for (var ordem in busMarkers) {
+                map.removeLayer(busMarkers[ordem]);
+                delete busMarkers[ordem];
+            }
+
+            filteredBuses.forEach(function(bus) {
+                var ordem = bus.ordem;
+                var lat = parseFloat(bus.latitude.replace(',', '.'));
+                var lon = parseFloat(bus.longitude.replace(',', '.'));
+                var linha = bus.linha;
+
+                if (!lineColors[linha]) {
+                    lineColors[linha] = getRandomColor();
+                }
+
+                var icon = L.divIcon({
+                    className: 'custom-marker',
+                    html: '<div class="custom-marker" style="background-color:' + lineColors[linha] + ';">' + linha + '</div>',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 30]
+                });
+
+                if (busMarkers[ordem]) {
+                    busMarkers[ordem].setLatLng([lat, lon]);
+                    busMarkers[ordem].setIcon(icon);
+                } else {
+                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map).bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
+                }
+            });
+        }
+
+        function onLocationFound(e) {
+            var latlng = e.latlng;
+            map.setView(latlng, 15); // Ajusta o zoom inicial
+
+            if (userMarker) {
+                userMarker.setLatLng(latlng);
+            } else {
+                userMarker = L.marker(latlng, { icon: L.icon({ 
+                    iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
+                    iconSize: [25, 41], 
+                    iconAnchor: [12, 41], 
+                    popupAnchor: [1, -34], 
+                    shadowSize: [41, 41] 
+                })}).addTo(map).bindPopup("Sua localização");
+            }
+        }
+
+        function onLocationError(e) {
+            console.log(e.message);
+            map.setView([-22.9068, -43.1729], 15); // Centraliza no Rio de Janeiro caso a localização do usuário não seja encontrada
+        }
+
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
+
+        // Solicita a localização do usuário
+        map.locate({ setView: true, maxZoom: 15, watch: true });
+
+        // Atualiza a localização dos ônibus a cada 15 segundos
+        setInterval(updateBuses, 15000);
+        updateBuses(); // Chama a função pela primeira vez imediatamente
+
+    </script>
+</body>
+</html>
