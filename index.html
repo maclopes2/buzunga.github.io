@@ -22,11 +22,13 @@
             box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
         }
 
+        /* Adicione o CSS para o ícone de balão */
         .custom-marker {
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 5px;
+            border-radius: 50% 50% 50% 0;
             background-color: #333;
             color: #fff;
             width: 30px;
@@ -36,6 +38,20 @@
             text-align: center;
             line-height: 30px;
             border: 1px solid #FFFFFF;
+        }
+
+        .custom-marker:after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: -10px;
+            width: 0;
+            height: 0;
+            border: 10px solid transparent;
+            border-top-color: #333;
+            border-top-width: 15px;
+            margin-left: -10px;
+            border-radius: 2px;
         }
 
         /* Estilos responsivos */
@@ -76,7 +92,6 @@
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    <script src="https://unpkg.com/leaflet.marker.slideto/leaflet.marker.slideto.js"></script>
     <script>
         // Inicializa o mapa
         var map = L.map('map');
@@ -125,13 +140,10 @@
 
             console.log("Total de ônibus filtrados:", filteredBuses.length); // Log do total de ônibus filtrados
 
-            // Remove os marcadores que não estão mais no filtro
+            // Remove os marcadores existentes
             for (var ordem in busMarkers) {
-                var isStillInFilter = filteredBuses.some(function(bus) { return bus.ordem === ordem; });
-                if (!isStillInFilter) {
-                    map.removeLayer(busMarkers[ordem]);
-                    delete busMarkers[ordem];
-                }
+                map.removeLayer(busMarkers[ordem]);
+                delete busMarkers[ordem];
             }
 
             filteredBuses.forEach(function(bus) {
@@ -152,10 +164,7 @@
                 });
 
                 if (busMarkers[ordem]) {
-                    busMarkers[ordem].slideTo([lat, lon], {
-                        duration: 1000,
-                        keepAtCenter: false
-                    });
+                    busMarkers[ordem].setLatLng([lat, lon]);
                     busMarkers[ordem].setIcon(icon);
                 } else {
                     busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map).bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
