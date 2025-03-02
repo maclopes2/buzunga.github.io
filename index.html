@@ -52,33 +52,6 @@
             font-weight: bold;
             line-height: 1.2;
         }
-
-        /* Estilos responsivos */
-        @media (max-width: 768px) {
-            #map {
-                height: calc(100% - 120px);
-            }
-            #search {
-                margin: 10px;
-                padding: 10px;
-                font-size: 14px;
-            }
-            .custom-marker {
-                width: 25px;
-                height: 25px;
-                line-height: 25px;
-                font-size: 10px;
-            }
-            label, input, button {
-                display: block;
-                width: 100%;
-                margin-bottom: 10px;
-            }
-            input, button {
-                padding: 10px;
-                font-size: 14px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -92,19 +65,16 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        // Inicializa o mapa
-        var map = L.map('map');
+        var map = L.map('map').setView([-22.9068, -43.1729], 15); // Centralizado no Rio de Janeiro
 
-        // Adiciona o tile layer do OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
         var busMarkers = {};
         var busesData = [];
-        var userMarker;
+        var lineColors = {};
 
-        // Função para gerar cores aleatórias para as linhas
         function getRandomColor() {
             var letters = '0123456789ABCDEF';
             var color = '#';
@@ -114,15 +84,34 @@
             return color;
         }
 
-        // Guarda as cores das linhas
-        var lineColors = {};
+        function animateMarker(marker, newLatLng) {
+            var startLatLng = marker.getLatLng();
+            var duration = 3000; // 3 segundos para a transição suave
+            var startTime = performance.now();
+
+            function moveMarker(currentTime) {
+                var elapsedTime = currentTime - startTime;
+                var t = Math.min(elapsedTime / duration, 1); // Normaliza o tempo
+
+                var lat = startLatLng.lat + (newLatLng[0] - startLatLng.lat) * t;
+                var lng = startLatLng.lng + (newLatLng[1] - startLatLng.lng) * t;
+
+                marker.setLatLng([lat, lng]);
+
+                if (t < 1) {
+                    requestAnimationFrame(moveMarker);
+                }
+            }
+
+            requestAnimationFrame(moveMarker);
+        }
 
         function updateBuses() {
             axios.get('https://dados.mobilidade.rio/gps/sppo')
                 .then(function (response) {
                     busesData = response.data;
-                    console.log("Total de ônibus recebidos:", busesData.length); // Log do total de ônibus recebidos
-                    filterBuses(); // Atualiza os marcadores filtrados
+                    console.log("Total de ônibus recebidos:", busesData.length);
+                    filterBuses();
                 })
                 .catch(function (error) {
                     console.log(error);
@@ -137,13 +126,7 @@
                 return searchLines.includes(bus.linha);
             });
 
-            console.log("Total de ônibus filtrados:", filteredBuses.length); // Log do total de ônibus filtrados
-
-            // Remove os marcadores existentes
-            for (var ordem in busMarkers) {
-                map.removeLayer(busMarkers[ordem]);
-                delete busMarkers[ordem];
-            }
+            console.log("Total de ônibus filtrados:", filteredBuses.length);
 
             filteredBuses.forEach(function(bus) {
                 var ordem = bus.ordem;
@@ -163,46 +146,42 @@
                 });
 
                 if (busMarkers[ordem]) {
-                    busMarkers[ordem].setLatLng([lat, lon]);
+                    animateMarker(busMarkers[ordem], [lat, lon]);
                     busMarkers[ordem].setIcon(icon);
                 } else {
-                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map).bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
+                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
+                        .bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
                 }
             });
         }
 
         function onLocationFound(e) {
             var latlng = e.latlng;
-            map.setView(latlng, 15); // Ajusta o zoom inicial
+            map.setView(latlng, 15);
 
-            if (userMarker) {
-                userMarker.setLatLng(latlng);
-            } else {
-                userMarker = L.marker(latlng, { icon: L.icon({ 
+            if (!window.userMarker) {
+                window.userMarker = L.marker(latlng, { icon: L.icon({ 
                     iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
                     iconSize: [25, 41], 
                     iconAnchor: [12, 41], 
                     popupAnchor: [1, -34], 
                     shadowSize: [41, 41] 
                 })}).addTo(map).bindPopup("Sua localização");
+            } else {
+                window.userMarker.setLatLng(latlng);
             }
         }
 
         function onLocationError(e) {
             console.log(e.message);
-            map.setView([-22.9068, -43.1729], 15); // Centraliza no Rio de Janeiro caso a localização do usuário não seja encontrada
         }
 
         map.on('locationfound', onLocationFound);
         map.on('locationerror', onLocationError);
-
-        // Solicita a localização do usuário
         map.locate({ setView: true, maxZoom: 15, watch: true });
 
-        // Atualiza a localização dos ônibus a cada 15 segundos
         setInterval(updateBuses, 15000);
-        updateBuses(); // Chama a função pela primeira vez imediatamente
-
+        updateBuses();
     </script>
 </body>
 </html>
