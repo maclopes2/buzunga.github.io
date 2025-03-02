@@ -21,6 +21,9 @@
             padding: 10px;
             background-color: #fff;
             box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         .custom-marker {
@@ -56,9 +59,9 @@
 </head>
 <body>
     <div id="search">
-        <label for="busLine">Digite os números separados por vírgulas </label>
         <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
         <button onclick="filterBuses()">Buscar</button>
+        <button onclick="locateUser()">Minha localização</button>
     </div>
     <div id="map"></div>
 
@@ -176,9 +179,12 @@
             console.log(e.message);
         }
 
+        function locateUser() {
+            map.locate({ setView: true, maxZoom: 15, watch: true });
+        }
+
         map.on('locationfound', onLocationFound);
         map.on('locationerror', onLocationError);
-        map.locate({ setView: true, maxZoom: 15, watch: true });
 
         setInterval(updateBuses, 15000);
         updateBuses();
