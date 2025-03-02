@@ -76,6 +76,7 @@
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/leaflet.marker.slideto/leaflet.marker.slideto.js"></script>
     <script>
         // Inicializa o mapa
         var map = L.map('map');
@@ -124,10 +125,13 @@
 
             console.log("Total de ônibus filtrados:", filteredBuses.length); // Log do total de ônibus filtrados
 
-            // Remove os marcadores existentes
+            // Remove os marcadores que não estão mais no filtro
             for (var ordem in busMarkers) {
-                map.removeLayer(busMarkers[ordem]);
-                delete busMarkers[ordem];
+                var isStillInFilter = filteredBuses.some(function(bus) { return bus.ordem === ordem; });
+                if (!isStillInFilter) {
+                    map.removeLayer(busMarkers[ordem]);
+                    delete busMarkers[ordem];
+                }
             }
 
             filteredBuses.forEach(function(bus) {
@@ -148,17 +152,20 @@
                 });
 
                 if (busMarkers[ordem]) {
-                    busMarkers[ordem].setLatLng([lat, lon]);
+                    busMarkers[ordem].slideTo([lat, lon], {
+                        duration: 1000,
+                        keepAtCenter: false
+                    });
                     busMarkers[ordem].setIcon(icon);
                 } else {
-                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map).bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
+                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon, slideTo: true }).addTo(map).bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
                 }
             });
         }
 
         function onLocationFound(e) {
             var latlng = e.latlng;
-            map.setView(latlng, 12); // Ajusta o zoom inicial
+            map.setView(latlng, 15); // Ajusta o zoom inicial
 
             if (userMarker) {
                 userMarker.setLatLng(latlng);
@@ -175,7 +182,7 @@
 
         function onLocationError(e) {
             console.log(e.message);
-            map.setView([-22.9068, -43.1729], 12); // Centraliza no Rio de Janeiro caso a localização do usuário não seja encontrada
+            map.setView([-22.9068, -43.1729], 15); // Centraliza no Rio de Janeiro caso a localização do usuário não seja encontrada
         }
 
         map.on('locationfound', onLocationFound);
