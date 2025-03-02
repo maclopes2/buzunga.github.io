@@ -158,7 +158,7 @@
                     });
                     busMarkers[ordem].setIcon(icon);
                 } else {
-                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon, slideTo: true }).addTo(map).bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
+                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map).bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
                 }
             });
         }
