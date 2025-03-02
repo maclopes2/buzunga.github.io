@@ -161,6 +161,7 @@
         function onLocationFound(e) {
             var latlng = e.latlng;
             map.setView(latlng, 15);
+            localStorage.setItem('lastLocation', JSON.stringify(latlng));
 
             if (!window.userMarker) {
                 window.userMarker = L.marker(latlng, { icon: L.icon({ 
@@ -181,6 +182,13 @@
 
         function locateUser() {
             map.locate({ setView: true, maxZoom: 15, watch: true });
+        }
+
+        var lastLocation = JSON.parse(localStorage.getItem('lastLocation'));
+        if (lastLocation) {
+            map.setView([lastLocation.lat, lastLocation.lng], 15);
+        } else {
+            locateUser();
         }
 
         map.on('locationfound', onLocationFound);
