@@ -4,6 +4,7 @@
     <title>Ônibus do Rio em tempo real</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         body, html {
             height: 100%;
@@ -36,6 +37,20 @@
             text-align: center;
             line-height: 30px;
             border: 1px solid #FFFFFF;
+        }
+
+        .custom-marker .marker-label {
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: #fff;
+            border-radius: 5px;
+            padding: 2px 5px;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1.2;
         }
 
         /* Estilos responsivos */
@@ -142,9 +157,9 @@
 
                 var icon = L.divIcon({
                     className: 'custom-marker',
-                    html: '<div class="custom-marker" style="background-color:' + lineColors[linha] + ';">' + linha + '</div>',
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 30]
+                    html: '<i class="fas fa-bus" style="font-size: 18px; color: ' + lineColors[linha] + ';"></i><div class="marker-label" style="background-color: ' + lineColors[linha] + ';">' + linha + '</div>',
+                    iconSize: [30, 42],
+                    iconAnchor: [15, 42]
                 });
 
                 if (busMarkers[ordem]) {
