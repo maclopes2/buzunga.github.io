@@ -73,13 +73,12 @@
         var busesData = [];
         var lineColors = {};
 
-        function initializeMap(userLat, userLon) {
-            map = L.map('map').setView([userLat, userLon], 15);
+        function initializeMap() {
+            // Inicializa o mapa sem um ponto central até que a localização seja encontrada
+            map = L.map('map');
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
-
-            locateUser(); // Já localiza o usuário ao iniciar
         }
 
         function getRandomColor() {
@@ -170,11 +169,7 @@
 
         function onLocationFound(e) {
             var latlng = e.latlng;
-            if (!map) {
-                initializeMap(latlng.lat, latlng.lng); // Inicializa o mapa com a localização do usuário
-            } else {
-                map.setView(latlng, 15);
-            }
+            map.setView(latlng, 15);
 
             if (!window.userMarker) {
                 window.userMarker = L.marker(latlng, { icon: L.icon({ 
@@ -187,23 +182,27 @@
             } else {
                 window.userMarker.setLatLng(latlng);
             }
+
+            updateBuses(); // Chama a função para buscar os ônibus após encontrar a localização
         }
 
         function onLocationError(e) {
-            console.log(e.message);
+            // Exibe uma mensagem se a localização não for permitida
+            alert("Não foi possível acessar sua localização. Por favor, habilite o GPS para usar o aplicativo.");
         }
 
         function locateUser() {
-            map.locate({ setView: true, maxZoom: 15 });
+            if (!map) {
+                initializeMap(); // Inicializa o mapa se ainda não tiver sido iniciado
+            }
+            map.locate({ setView: false, maxZoom: 15 }); // Solicita a localização sem definir um ponto padrão
         }
 
-        map = L.map('map'); // Inicializa o mapa para localização
-        map.on('locationfound', onLocationFound);
-        map.on('locationerror', onLocationError);
+        initializeMap(); // Inicializa o mapa sem ponto central
+        map.on('locationfound', onLocationFound); // Configura o evento de localização encontrada
+        map.on('locationerror', onLocationError); // Configura o evento de erro de localização
 
-        locateUser(); // Localiza o usuário ao carregar
-        setInterval(updateBuses, 15000);
-        updateBuses();
+        locateUser(); // Solicita a localização do usuário logo ao abrir o app
     </script>
 </body>
 </html>
