@@ -68,18 +68,15 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        var map;
+        var map = L.map('map').setView([-22.9068, -43.1729], 15); // Centralizado no Rio de Janeiro
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
         var busMarkers = {};
         var busesData = [];
         var lineColors = {};
-
-        function initializeMap() {
-            // Inicializa o mapa sem um ponto central até que a localização seja encontrada
-            map = L.map('map');
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
-        }
 
         function getRandomColor() {
             var letters = '0123456789ABCDEF';
@@ -92,15 +89,18 @@
 
         function animateMarker(marker, newLatLng) {
             var startLatLng = marker.getLatLng();
-            var duration = 3000;
+            var duration = 3000; // 3 segundos para a transição suave
             var startTime = performance.now();
 
             function moveMarker(currentTime) {
                 var elapsedTime = currentTime - startTime;
-                var t = Math.min(elapsedTime / duration, 1);
+                var t = Math.min(elapsedTime / duration, 1); // Normaliza o tempo
+
                 var lat = startLatLng.lat + (newLatLng[0] - startLatLng.lat) * t;
                 var lng = startLatLng.lng + (newLatLng[1] - startLatLng.lng) * t;
+
                 marker.setLatLng([lat, lng]);
+
                 if (t < 1) {
                     requestAnimationFrame(moveMarker);
                 }
@@ -121,16 +121,7 @@
                 });
         }
 
-        function clearPreviousMarkers() {
-            Object.values(busMarkers).forEach(function(marker) {
-                map.removeLayer(marker);
-            });
-            busMarkers = {}; // Reseta o objeto de marcadores
-        }
-
         function filterBuses() {
-            clearPreviousMarkers(); // Remove marcadores anteriores
-
             var searchValue = document.getElementById('busLine').value.trim();
             var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
 
@@ -178,31 +169,25 @@
                     iconAnchor: [12, 41], 
                     popupAnchor: [1, -34], 
                     shadowSize: [41, 41] 
-                })}).addTo(map).bindPopup("Sua localização").openPopup();
+                })}).addTo(map).bindPopup("Sua localização");
             } else {
                 window.userMarker.setLatLng(latlng);
             }
-
-            updateBuses(); // Chama a função para buscar os ônibus após encontrar a localização
         }
 
         function onLocationError(e) {
-            // Exibe uma mensagem se a localização não for permitida
-            alert("Não foi possível acessar sua localização. Por favor, habilite o GPS para usar o aplicativo.");
+            console.log(e.message);
         }
 
         function locateUser() {
-            if (!map) {
-                initializeMap(); // Inicializa o mapa se ainda não tiver sido iniciado
-            }
-            map.locate({ setView: false, maxZoom: 15 }); // Solicita a localização sem definir um ponto padrão
+            map.locate({ setView: true, maxZoom: 15, watch: true });
         }
 
-        initializeMap(); // Inicializa o mapa sem ponto central
-        map.on('locationfound', onLocationFound); // Configura o evento de localização encontrada
-        map.on('locationerror', onLocationError); // Configura o evento de erro de localização
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
 
-        locateUser(); // Solicita a localização do usuário logo ao abrir o app
+        setInterval(updateBuses, 15000);
+        updateBuses();
     </script>
 </body>
 </html>
