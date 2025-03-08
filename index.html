@@ -68,15 +68,20 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        var map = L.map('map').setView([-22.9068, -43.1729], 15); // Centralizado no Rio de Janeiro
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
-        var busMarkers = {};
+        var map;
+        var busMarkers = {}; // Objetos para armazenar marcadores por ID de ônibus
         var busesData = [];
         var lineColors = {};
+
+        function initializeMap() {
+            map = L.map('map');
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Solicita a localização do usuário ao carregar o app
+            locateUser();
+        }
 
         function getRandomColor() {
             var letters = '0123456789ABCDEF';
@@ -124,6 +129,12 @@
         function filterBuses() {
             var searchValue = document.getElementById('busLine').value.trim();
             var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
+
+            // Remove os marcadores da busca anterior
+            for (var ordem in busMarkers) {
+                map.removeLayer(busMarkers[ordem]);
+            }
+            busMarkers = {}; // Limpa o objeto de marcadores
 
             var filteredBuses = busesData.filter(function(bus) {
                 return searchLines.includes(bus.linha);
@@ -180,12 +191,13 @@
         }
 
         function locateUser() {
-            map.locate({ setView: true, maxZoom: 15, watch: true });
+            map.locate({ setView: true, maxZoom: 15 });
         }
 
         map.on('locationfound', onLocationFound);
         map.on('locationerror', onLocationError);
 
+        initializeMap();
         setInterval(updateBuses, 15000);
         updateBuses();
     </script>
