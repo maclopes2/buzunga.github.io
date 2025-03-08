@@ -68,52 +68,11 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-       var map; // Variável do mapa declarada sem inicializar
+        var map = L.map('map').setView([-22.9068, -43.1729], 15); // Centralizado no Rio de Janeiro
 
-    // Função para inicializar o mapa somente após obter a localização do usuário
-    function locateUser() {
-        if (!map) {
-            map = L.map('map'); // Inicializa o mapa sem uma posição definida
-        }
-
-        // Localiza o usuário e ajusta o mapa à posição dele
-        map.locate({ setView: true, maxZoom: 15, watch: true });
-    }
-
-    function onLocationFound(e) {
-        var latlng = e.latlng;
-
-        if (!window.userMarker) {
-            window.userMarker = L.marker(latlng, { icon: L.icon({ 
-                iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
-                iconSize: [25, 41], 
-                iconAnchor: [12, 41], 
-                popupAnchor: [1, -34], 
-                shadowSize: [41, 41] 
-            }) }).addTo(map).bindPopup("Sua localização");
-        } else {
-            window.userMarker.setLatLng(latlng);
-        }
-
-        map.setView(latlng, 15); // Centraliza o mapa na posição do usuário
-    }
-
-    function onLocationError(e) {
-        console.log(e.message);
-        alert("Não foi possível obter sua localização. Verifique as permissões do navegador.");
-    }
-
-    map = L.map('map'); // Inicializa o mapa, mas sem definir uma localização fixa
-
-    map.on('locationfound', onLocationFound);
-    map.on('locationerror', onLocationError);
-
-    locateUser(); // Chama a função para localizar o usuário ao carregar a página
-
-    // Camada do mapa
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
 
         var busMarkers = {};
         var busesData = [];
