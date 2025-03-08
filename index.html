@@ -68,19 +68,9 @@
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
         var map;
-        var busMarkers = {}; // Objetos para armazenar marcadores por ID de ônibus
+        var busMarkers = {};
         var busesData = [];
         var lineColors = {};
-
-        function initializeMap() {
-            map = L.map('map');
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
-
-            // Solicita a localização do usuário ao carregar o app
-            locateUser();
-        }
 
         function getRandomColor() {
             var letters = '0123456789ABCDEF';
@@ -125,15 +115,18 @@
                 });
         }
 
-        function filterBuses() {
-            var searchValue = document.getElementById('busLine').value.trim();
-            var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
-
-            // Remove os marcadores da busca anterior
+        function clearMarkers() {
             for (var ordem in busMarkers) {
                 map.removeLayer(busMarkers[ordem]);
             }
-            busMarkers = {}; // Limpa o objeto de marcadores
+            busMarkers = {};
+        }
+
+        function filterBuses() {
+            clearMarkers(); // Limpar marcadores anteriores
+
+            var searchValue = document.getElementById('busLine').value.trim();
+            var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
 
             var filteredBuses = busesData.filter(function(bus) {
                 return searchLines.includes(bus.linha);
@@ -179,9 +172,7 @@
                     iconAnchor: [12, 41], 
                     popupAnchor: [1, -34], 
                     shadowSize: [41, 41] 
-                })}).addTo(map).bindPopup("Sua localização");
-            } else {
-                window.userMarker.setLatLng(latlng);
+                })}).addTo(map).bindPopup("Sua localização").openPopup();
             }
         }
 
@@ -189,16 +180,21 @@
             console.log(e.message);
         }
 
-        function locateUser() {
-            map.locate({ setView: true, maxZoom: 15 });
+        function initializeMap() {
+            map = L.map('map').locate({ setView: true, maxZoom: 15, watch: true });
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            map.on('locationfound', onLocationFound);
+            map.on('locationerror', onLocationError);
+
+            updateBuses();
+            setInterval(updateBuses, 15000);
         }
 
-        map.on('locationfound', onLocationFound);
-        map.on('locationerror', onLocationError);
-
         initializeMap();
-        setInterval(updateBuses, 15000);
-        updateBuses();
     </script>
 </body>
 </html>
