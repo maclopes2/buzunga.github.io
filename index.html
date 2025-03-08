@@ -13,7 +13,7 @@
         }
 
         #map {
-            height: 100%;
+            height: calc(100% - 60px);
             width: 100%;
         }
 
@@ -25,33 +25,58 @@
             align-items: center;
             justify-content: space-between;
         }
+
+        .custom-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            background-color: #333;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 30px;
+            border: 1px solid #FFFFFF;
+        }
+
+        .custom-marker .marker-label {
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: #fff;
+            border-radius: 5px;
+            padding: 2px 5px;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1.2;
+        }
     </style>
 </head>
 <body>
     <div id="search">
         <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
         <button onclick="filterBuses()">Buscar</button>
+        <button onclick="locateUser()">Meu Local</button>
     </div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        var map;
+        var map = L.map('map').setView([-22.9068, -43.1729], 15); // Centralizado no Rio de Janeiro
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
         var busMarkers = {};
         var busesData = [];
         var lineColors = {};
-
-        function initializeMap(lat, lon) {
-            map = L.map('map').setView([lat, lon], 15);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
-
-            updateBuses();
-            setInterval(updateBuses, 15000);
-        }
 
         function getRandomColor() {
             var letters = '0123456789ABCDEF';
@@ -62,34 +87,55 @@
             return color;
         }
 
+        function animateMarker(marker, newLatLng) {
+            var startLatLng = marker.getLatLng();
+            var duration = 3000; // 3 segundos para a transição suave
+            var startTime = performance.now();
+
+            function moveMarker(currentTime) {
+                var elapsedTime = currentTime - startTime;
+                var t = Math.min(elapsedTime / duration, 1); // Normaliza o tempo
+
+                var lat = startLatLng.lat + (newLatLng[0] - startLatLng.lat) * t;
+                var lng = startLatLng.lng + (newLatLng[1] - startLatLng.lng) * t;
+
+                marker.setLatLng([lat, lng]);
+
+                if (t < 1) {
+                    requestAnimationFrame(moveMarker);
+                }
+            }
+
+            requestAnimationFrame(moveMarker);
+        }
+
         function updateBuses() {
             axios.get('https://dados.mobilidade.rio/gps/sppo')
                 .then(function (response) {
                     busesData = response.data;
+                    console.log("Total de ônibus recebidos:", busesData.length);
                     filterBuses();
                 })
                 .catch(function (error) {
-                    console.error(error);
+                    console.log(error);
                 });
         }
 
         function filterBuses() {
             var searchValue = document.getElementById('busLine').value.trim();
-            var searchLines = searchValue.split(',').map(line => line.trim());
+            var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
 
-            busesData.forEach(function(bus) {
+            var filteredBuses = busesData.filter(function(bus) {
+                return searchLines.includes(bus.linha);
+            });
+
+            console.log("Total de ônibus filtrados:", filteredBuses.length);
+
+            filteredBuses.forEach(function(bus) {
                 var ordem = bus.ordem;
                 var lat = parseFloat(bus.latitude.replace(',', '.'));
                 var lon = parseFloat(bus.longitude.replace(',', '.'));
                 var linha = bus.linha;
-
-                if (!searchLines.includes(linha)) {
-                    if (busMarkers[ordem]) {
-                        map.removeLayer(busMarkers[ordem]);
-                        delete busMarkers[ordem];
-                    }
-                    return;
-                }
 
                 if (!lineColors[linha]) {
                     lineColors[linha] = getRandomColor();
@@ -97,13 +143,14 @@
 
                 var icon = L.divIcon({
                     className: 'custom-marker',
-                    html: '<i class="fas fa-bus" style="color: ' + lineColors[linha] + ';"></i>',
+                    html: '<i class="fas fa-bus" style="font-size: 18px; color: ' + lineColors[linha] + ';"></i><div class="marker-label" style="background-color: ' + lineColors[linha] + ';">' + linha + '</div>',
                     iconSize: [30, 42],
                     iconAnchor: [15, 42]
                 });
 
                 if (busMarkers[ordem]) {
-                    busMarkers[ordem].setLatLng([lat, lon]).setIcon(icon);
+                    animateMarker(busMarkers[ordem], [lat, lon]);
+                    busMarkers[ordem].setIcon(icon);
                 } else {
                     busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
                         .bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
@@ -112,38 +159,35 @@
         }
 
         function onLocationFound(e) {
-            var lat = e.latlng.lat;
-            var lon = e.latlng.lng;
-            initializeMap(lat, lon);
-        }
+            var latlng = e.latlng;
+            map.setView(latlng, 15);
 
-        function onLocationError(e) {
-            console.error("Erro ao obter localização: " + e.message);
-            // Centraliza no Rio de Janeiro como fallback
-            initializeMap(-22.9068, -43.1729);
-        }
-
-        function locateUser() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        onLocationFound({
-                            latlng: {
-                                lat: position.coords.latitude,
-                                lng: position.coords.longitude
-                            }
-                        });
-                    },
-                    function() {
-                        onLocationError({ message: "Acesso negado ou indisponível." });
-                    }
-                );
+            if (!window.userMarker) {
+                window.userMarker = L.marker(latlng, { icon: L.icon({ 
+                    iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
+                    iconSize: [25, 41], 
+                    iconAnchor: [12, 41], 
+                    popupAnchor: [1, -34], 
+                    shadowSize: [41, 41] 
+                })}).addTo(map).bindPopup("Sua localização");
             } else {
-                onLocationError({ message: "Geolocalização não suportada pelo navegador." });
+                window.userMarker.setLatLng(latlng);
             }
         }
 
-        locateUser(); // Inicia a localização do usuário
+        function onLocationError(e) {
+            console.log(e.message);
+        }
+
+        function locateUser() {
+            map.locate({ setView: true, maxZoom: 15, watch: true });
+        }
+
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
+
+        setInterval(updateBuses, 15000);
+        updateBuses();
     </script>
 </body>
 </html>
