@@ -61,40 +61,13 @@
     <div id="search">
         <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
         <button onclick="filterBuses()">Buscar</button>
-        <button onclick="locateUser()">Meu Local</button>
     </div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        var map = L.map('map');
-
-        // Inicializa o mapa e tenta localizar o usuário
-        map.locate({ setView: true, maxZoom: 15 })
-            .on('locationfound', function(e) {
-                var latlng = e.latlng;
-                if (!window.userMarker) {
-                    window.userMarker = L.marker(latlng, { icon: L.icon({ 
-                        iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
-                        iconSize: [25, 41], 
-                        iconAnchor: [12, 41], 
-                        popupAnchor: [1, -34], 
-                        shadowSize: [41, 41] 
-                    })}).addTo(map).bindPopup("Sua localização").openPopup();
-                } else {
-                    window.userMarker.setLatLng(latlng);
-                }
-            })
-            .on('locationerror', function(e) {
-                console.log(e.message);
-                map.setView([-22.9068, -43.1729], 15); // Fallback para o Rio de Janeiro
-            });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
+        var map;
         var busMarkers = {};
         var busesData = [];
         var lineColors = {};
@@ -110,12 +83,12 @@
 
         function animateMarker(marker, newLatLng) {
             var startLatLng = marker.getLatLng();
-            var duration = 3000;
+            var duration = 3000; // 3 segundos para a transição suave
             var startTime = performance.now();
 
             function moveMarker(currentTime) {
                 var elapsedTime = currentTime - startTime;
-                var t = Math.min(elapsedTime / duration, 1);
+                var t = Math.min(elapsedTime / duration, 1); // Normaliza o tempo
 
                 var lat = startLatLng.lat + (newLatLng[0] - startLatLng.lat) * t;
                 var lng = startLatLng.lng + (newLatLng[1] - startLatLng.lng) * t;
@@ -142,12 +115,15 @@
                 });
         }
 
+        function clearMarkers() {
+            for (var ordem in busMarkers) {
+                map.removeLayer(busMarkers[ordem]);
+            }
+            busMarkers = {};
+        }
+
         function filterBuses() {
-            // Remove os marcadores antigos
-            Object.values(busMarkers).forEach(function(marker) {
-                map.removeLayer(marker);
-            });
-            busMarkers = {}; // Limpa o objeto de marcadores
+            clearMarkers(); // Limpar marcadores anteriores
 
             var searchValue = document.getElementById('busLine').value.trim();
             var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
@@ -185,8 +161,40 @@
             });
         }
 
-        setInterval(updateBuses, 15000);
-        updateBuses();
+        function onLocationFound(e) {
+            var latlng = e.latlng;
+            map.setView(latlng, 15);
+
+            if (!window.userMarker) {
+                window.userMarker = L.marker(latlng, { icon: L.icon({ 
+                    iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
+                    iconSize: [25, 41], 
+                    iconAnchor: [12, 41], 
+                    popupAnchor: [1, -34], 
+                    shadowSize: [41, 41] 
+                })}).addTo(map).bindPopup("Sua localização").openPopup();
+            }
+        }
+
+        function onLocationError(e) {
+            console.log(e.message);
+        }
+
+        function initializeMap() {
+            map = L.map('map').locate({ setView: true, maxZoom: 15, watch: true });
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            map.on('locationfound', onLocationFound);
+            map.on('locationerror', onLocationError);
+
+            updateBuses();
+            setInterval(updateBuses, 15000);
+        }
+
+        initializeMap();
     </script>
 </body>
 </html>
