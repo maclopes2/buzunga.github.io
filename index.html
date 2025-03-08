@@ -4,64 +4,79 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Localização de Ônibus</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        #map { height: 100vh; }
+    </style>
 </head>
 <body>
-    <div id="map" style="width: 100%; height: 100vh;"></div>
+    <div id="map"></div>
+    <input type="text" id="busLines" placeholder="Buscar por linhas (ex: 301, 302)">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const map = L.map('map').setView([0, 0], 13); // Mapa vazio inicializado
-        const userMarker = L.marker([0, 0]).addTo(map); // Marcador de localização do usuário
-
-        // Adiciona camada OpenStreetMap
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-        }).addTo(map);
-
-        // Obtém a localização do usuário
-        navigator.geolocation.getCurrentPosition(function (position) {
+        // Inicializa o mapa
+        const map = L.map('map');
+        navigator.geolocation.getCurrentPosition(position => {
             const { latitude, longitude } = position.coords;
             map.setView([latitude, longitude], 13);
-            userMarker.setLatLng([latitude, longitude]);
+        });
+        
+        // Adiciona OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+        }).addTo(map);
+
+        // Armazena os marcadores de ônibus
+        const busMarkers = {};
+        const lineColors = {}; // Armazena cores para cada linha de ônibus
+
+        // Função para buscar dados da API
+        async function fetchBusData() {
+            const response = await fetch('https://dados.mobilidade.rio/gps/sppo');
+            const data = await response.json();
+            updateBusMarkers(data);
+        }
+
+        // Atualiza os marcadores de ônibus
+        function updateBusMarkers(busData) {
+            busData.forEach(bus => {
+                const { linha, latitude, longitude } = bus;
+                // Define uma cor única para cada linha
+                if (!lineColors[linha]) {
+                    lineColors[linha] = '#' + Math.floor(Math.random()*16777215).toString(16);
+                }
+
+                // Cria ou atualiza o marcador de ônibus
+                if (!busMarkers[linha]) {
+                    busMarkers[linha] = L.circleMarker([latitude, longitude], {
+                        color: lineColors[linha],
+                        radius: 6,
+                        fillColor: lineColors[linha],
+                        fillOpacity: 0.8,
+                    }).bindPopup(`Linha: ${linha}`).addTo(map);
+                } else {
+                    busMarkers[linha].setLatLng([latitude, longitude]).update();
+                }
+            });
+        }
+
+        // Atualiza os dados a cada 15 segundos
+        setInterval(fetchBusData, 15000);
+
+        // Campo de busca por linhas
+        document.getElementById('busLines').addEventListener('input', e => {
+            const searchLines = e.target.value.split(',').map(line => line.trim());
+            Object.keys(busMarkers).forEach(line => {
+                if (!searchLines.includes(line)) {
+                    busMarkers[line].remove();
+                } else {
+                    busMarkers[line].addTo(map);
+                }
+            });
         });
 
-        const busMarkers = {}; // Objeto para rastrear marcadores por linha
-        const busColors = {}; // Armazena cores exclusivas por linha
-
-        function getRandomColor() {
-            return '#' + Math.floor(Math.random() * 16777215).toString(16); // Cor aleatória
-        }
-
-        function updateBusLocations() {
-            fetch('https://dados.mobilidade.rio/gps/sppo')
-                .then(response => response.json())
-                .then(data => {
-                    data.forEach(bus => {
-                        const { id, linha, latitude, longitude } = bus;
-                        const busPosition = [latitude, longitude];
-
-                        // Atribui uma cor única para cada linha
-                        if (!busColors[linha]) busColors[linha] = getRandomColor();
-
-                        if (busMarkers[id]) {
-                            // Movimenta suavemente para nova posição
-                            busMarkers[id].setLatLng(busPosition);
-                        } else {
-                            // Cria um novo marcador
-                            busMarkers[id] = L.marker(busPosition, {
-                                icon: L.divIcon({
-                                    className: 'bus-icon',
-                                    html: `<div style="color:${busColors[linha]}">${linha}</div>`
-                                })
-                            }).addTo(map);
-                        }
-                    });
-                });
-        }
-
-        // Atualiza dados a cada 15 segundos
-        updateBusLocations();
-        setInterval(updateBusLocations, 15000);
+        // Carregar dados iniciais
+        fetchBusData();
     </script>
 </body>
 </html>
