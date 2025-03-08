@@ -67,12 +67,7 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        var map = L.map('map').setView([-22.9068, -43.1729], 12); // Centralizado no Rio de Janeiro
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
+        var map, userMarker;
         var busMarkers = {};
         var busesData = [];
         var lineColors = {};
@@ -159,10 +154,20 @@
 
         function onLocationFound(e) {
             var latlng = e.latlng;
-            map.setView(latlng, 15);
 
-            if (!window.userMarker) {
-                window.userMarker = L.marker(latlng, { icon: L.icon({ 
+            // Centralizar o mapa na localização do usuário
+            if (!map) {
+                map = L.map('map').setView(latlng, 15);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+            } else {
+                map.setView(latlng, 15);
+            }
+
+            if (!userMarker) {
+                userMarker = L.marker(latlng, { icon: L.icon({ 
                     iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
                     iconSize: [25, 41], 
                     iconAnchor: [12, 41], 
@@ -170,7 +175,7 @@
                     shadowSize: [41, 41] 
                 })}).addTo(map).bindPopup("Sua localização");
             } else {
-                window.userMarker.setLatLng(latlng);
+                userMarker.setLatLng(latlng);
             }
         }
 
@@ -178,13 +183,15 @@
             console.log(e.message);
         }
 
+        // Inicializar localização do usuário ao carregar
         function locateUser() {
-            map.locate({ setView: true, maxZoom: 15, watch: true });
+            navigator.geolocation.getCurrentPosition(function(position) {
+                var latlng = [position.coords.latitude, position.coords.longitude];
+                onLocationFound({ latlng: latlng });
+            }, onLocationError, { enableHighAccuracy: true });
         }
 
-        map.on('locationfound', onLocationFound);
-        map.on('locationerror', onLocationError);
-
+        locateUser(); // Garante que o mapa inicie na localização atual
         setInterval(updateBuses, 15000);
         updateBuses();
     </script>
