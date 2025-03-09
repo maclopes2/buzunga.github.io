@@ -1,193 +1,118 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>Ônibus do Rio em tempo real</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <title>Ônibus em Tempo Real</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
     <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-
-        #map {
-            height: calc(100% - 60px);
-            width: 100%;
-        }
-
-        #search {
-            padding: 10px;
-            background-color: #fff;
-            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .custom-marker {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 5px;
-            background-color: #333;
-            color: #fff;
-            width: 30px;
-            height: 30px;
-            font-size: 12px;
-            font-weight: bold;
-            text-align: center;
-            line-height: 30px;
-            border: 1px solid #FFFFFF;
-        }
-
-        .custom-marker .marker-label {
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #333;
-            color: #fff;
-            border-radius: 5px;
-            padding: 2px 5px;
-            font-size: 12px;
-            font-weight: bold;
-            line-height: 1.2;
-        }
+        body, html { margin: 0; padding: 0; height: 100%; }
+        #map { height: calc(100% - 60px); }
+        #search { padding: 10px; background: white; position: relative; z-index: 1000; }
+        .custom-marker { font-size: 18px; color: red; }
     </style>
 </head>
 <body>
     <div id="search">
-        <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
+        <input type="text" id="busLine" placeholder="Número da linha">
         <button onclick="filterBuses()">Buscar</button>
         <button onclick="locateUser()">Meu Local</button>
     </div>
     <div id="map"></div>
-
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        var map = L.map('map').setView([-22.9068, -43.1729], 15); // Centralizado no Rio de Janeiro
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
+        var map;
         var busMarkers = {};
         var busesData = [];
-        var lineColors = {};
 
-        function getRandomColor() {
-            var letters = '0123456789ABCDEF';
-            var color = '#';
-            for (var i = 0; i < 6; i++) {
-                color += letters[Math.floor(Math.random() * 16)];
-            }
-            return color;
+        function initMap(position) {
+            var userLat = position.coords.latitude;
+            var userLng = position.coords.longitude;
+            
+            map = L.map('map').setView([userLat, userLng], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            
+            updateBuses();
+            setInterval(updateBuses, 15000);
         }
 
-        function animateMarker(marker, newLatLng) {
-            var startLatLng = marker.getLatLng();
-            var duration = 3000; // 3 segundos para a transição suave
-            var startTime = performance.now();
-
-            function moveMarker(currentTime) {
-                var elapsedTime = currentTime - startTime;
-                var t = Math.min(elapsedTime / duration, 1); // Normaliza o tempo
-
-                var lat = startLatLng.lat + (newLatLng[0] - startLatLng.lat) * t;
-                var lng = startLatLng.lng + (newLatLng[1] - startLatLng.lng) * t;
-
-                marker.setLatLng([lat, lng]);
-
-                if (t < 1) {
-                    requestAnimationFrame(moveMarker);
-                }
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(initMap, function() {
+                    alert("Não foi possível obter sua localização.");
+                    initMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
+                });
+            } else {
+                alert("Geolocalização não suportada pelo seu navegador.");
+                initMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
             }
-
-            requestAnimationFrame(moveMarker);
         }
 
         function updateBuses() {
             axios.get('https://dados.mobilidade.rio/gps/sppo')
-                .then(function (response) {
+                .then(response => {
                     busesData = response.data;
-                    console.log("Total de ônibus recebidos:", busesData.length);
-                    filterBuses();
+                    renderBuses();
                 })
-                .catch(function (error) {
-                    console.log(error);
-                });
+                .catch(error => console.error('Erro ao buscar dados dos ônibus:', error));
+        }
+
+        function renderBuses() {
+            for (var id in busMarkers) {
+                map.removeLayer(busMarkers[id]);
+            }
+            busMarkers = {};
+
+            busesData.forEach(bus => {
+                var lat = parseFloat(bus.latitude.replace(',', '.'));
+                var lon = parseFloat(bus.longitude.replace(',', '.'));
+                var line = bus.route;
+
+                var marker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'custom-marker',
+                        html: '🚌',
+                        iconSize: [20, 20]
+                    })
+                }).addTo(map);
+
+                marker.bindPopup(`Linha: ${line}`);
+                busMarkers[bus.id] = marker;
+            });
         }
 
         function filterBuses() {
-            var searchValue = document.getElementById('busLine').value.trim();
-            var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
+            var searchLine = document.getElementById('busLine').value.trim();
+            var filteredBuses = busesData.filter(bus => bus.route.includes(searchLine));
+            
+            for (var id in busMarkers) {
+                map.removeLayer(busMarkers[id]);
+            }
+            busMarkers = {};
 
-            var filteredBuses = busesData.filter(function(bus) {
-                return searchLines.includes(bus.linha);
-            });
-
-            console.log("Total de ônibus filtrados:", filteredBuses.length);
-
-            filteredBuses.forEach(function(bus) {
-                var ordem = bus.ordem;
+            filteredBuses.forEach(bus => {
                 var lat = parseFloat(bus.latitude.replace(',', '.'));
                 var lon = parseFloat(bus.longitude.replace(',', '.'));
-                var linha = bus.linha;
+                var line = bus.route;
 
-                if (!lineColors[linha]) {
-                    lineColors[linha] = getRandomColor();
-                }
+                var marker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'custom-marker',
+                        html: '🚌',
+                        iconSize: [20, 20]
+                    })
+                }).addTo(map);
 
-                var icon = L.divIcon({
-                    className: 'custom-marker',
-                    html: '<i class="fas fa-bus" style="font-size: 18px; color: ' + lineColors[linha] + ';"></i><div class="marker-label" style="background-color: ' + lineColors[linha] + ';">' + linha + '</div>',
-                    iconSize: [30, 42],
-                    iconAnchor: [15, 42]
-                });
-
-                if (busMarkers[ordem]) {
-                    animateMarker(busMarkers[ordem], [lat, lon]);
-                    busMarkers[ordem].setIcon(icon);
-                } else {
-                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
-                        .bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
-                }
+                marker.bindPopup(`Linha: ${line}`);
+                busMarkers[bus.id] = marker;
             });
         }
 
-        function onLocationFound(e) {
-            var latlng = e.latlng;
-            map.setView(latlng, 15);
-
-            if (!window.userMarker) {
-                window.userMarker = L.marker(latlng, { icon: L.icon({ 
-                    iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
-                    iconSize: [25, 41], 
-                    iconAnchor: [12, 41], 
-                    popupAnchor: [1, -34], 
-                    shadowSize: [41, 41] 
-                })}).addTo(map).bindPopup("Sua localização");
-            } else {
-                window.userMarker.setLatLng(latlng);
-            }
-        }
-
-        function onLocationError(e) {
-            console.log(e.message);
-        }
-
-        function locateUser() {
-            map.locate({ setView: true, maxZoom: 15, watch: true });
-        }
-
-        map.on('locationfound', onLocationFound);
-        map.on('locationerror', onLocationError);
-
-        setInterval(updateBuses, 15000);
-        updateBuses();
+        locateUser();
     </script>
 </body>
 </html>
