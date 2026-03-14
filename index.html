@@ -98,6 +98,11 @@
             var searchValue = document.getElementById('busLine').value.trim();
             var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
 
+            // Se não houver linhas digitadas, não mostra nada
+            if (searchLines.length === 0 || searchLines[0] === "") {
+                return;
+            }
+
             var filteredBuses = busesData.filter(function(bus) {
                 return searchLines.includes(bus.linha);
             });
@@ -107,6 +112,9 @@
                 var lat = parseFloat(bus.latitude.replace(',', '.'));
                 var lon = parseFloat(bus.longitude.replace(',', '.'));
                 var linha = bus.linha;
+
+                // Ignora dados inválidos
+                if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
 
                 if (!lineColors[linha]) {
                     lineColors[linha] = getRandomColor();
@@ -146,6 +154,6 @@
     </script>
 
     <!-- Carregue a API do Google Maps com sua chave -->
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDIXNb9QQ6gREN8imJ4_UIDFn1HOfAAQ1o&callback=initializeMap"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDIXNb9QQ6gREN8imJ4_UIDFn1HOfAAQ1o"></script>
 </body>
 </html>
