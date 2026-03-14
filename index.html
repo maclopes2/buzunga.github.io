@@ -1,151 +1,103 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Buzunga Rio. Encontre seu ônibus!!</title>
+    <title>Buzunga Rio - Encontre seu ônibus!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-
-        #map {
-            height: calc(100% - 60px);
-            width: 100%;
-        }
-
-        #search {
-            padding: 10px;
-            background-color: #fff;
-            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .marker-label {
-            background-color: #333;
-            color: #fff;
-            border-radius: 5px;
-            padding: 2px 5px;
-            font-size: 12px;
-            font-weight: bold;
-            line-height: 1.2;
-        }
+        body, html { height: 100%; margin: 0; padding: 0; }
+        #map { height: calc(100% - 60px); width: 100%; }
+        #search { padding: 10px; background: #fff; display: flex; gap: 10px; }
     </style>
 </head>
 <body>
     <div id="search">
-        <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
+        <input type="text" id="busLine" placeholder="Digite as linhas (ex: 474, 455)" />
         <button onclick="filterBuses()">Buscar</button>
     </div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        var map;
-        var busMarkers = {};
-        var busesData = [];
-        var lineColors = {};
+        let map;
+        let busMarkers = {};
+        let busesData = [];
+        let lineColors = {};
 
         function getRandomColor() {
-            var letters = '0123456789ABCDEF';
-            var color = '#';
-            for (var i = 0; i < 6; i++) {
-                color += letters[Math.floor(Math.random() * 16)];
-            }
-            return color;
+            return '#' + Math.floor(Math.random()*16777215).toString(16);
         }
 
-        function initializeMap(position) {
-            var userLat = position.coords.latitude;
-            var userLng = position.coords.longitude;
-
+        function initializeMap() {
+            // Centraliza no Rio se não conseguir geolocalização
+            const defaultCenter = { lat: -22.9068, lng: -43.1729 };
             map = new google.maps.Map(document.getElementById("map"), {
-                center: { lat: userLat, lng: userLng },
-                zoom: 15
+                center: defaultCenter,
+                zoom: 13
             });
 
-            new google.maps.Marker({
-                position: { lat: userLat, lng: userLng },
-                map: map,
-                title: "Sua localização"
-            });
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    map.setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                    new google.maps.Marker({
+                        position: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+                        map: map,
+                        title: "Sua localização"
+                    });
+                });
+            }
 
-            setInterval(updateBuses, 60000);
             updateBuses();
-        }
-
-        function handleLocationError(error) {
-            console.log("Erro ao obter localização:", error.message);
-            alert("Não foi possível obter sua localização. Verifique as permissões do navegador.");
+            setInterval(updateBuses, 60000);
         }
 
         function updateBuses() {
-            axios.get('https://dados.mobilidade.rio/gps/sppo?dataInicial=AAAA-MM-DD+HH:MM:SS&dataFinal=AAAA-MM-DD+HH:MM:SS')
-                .then(function (response) {
-                    busesData = response.data;
+            axios.get('https://dados.mobilidade.rio/gps/sppo')
+                .then(res => {
+                    busesData = res.data;
                     filterBuses();
                 })
-                .catch(function (error) {
-                    console.log(error);
-                });
+                .catch(err => console.error("Erro API:", err));
         }
 
         function filterBuses() {
-            var searchValue = document.getElementById('busLine').value.trim();
-            var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
+            const searchValue = document.getElementById('busLine').value.trim();
+            const searchLines = searchValue ? searchValue.split(',').map(l => l.trim().toUpperCase()) : [];
 
-            var filteredBuses = busesData.filter(function(bus) {
-                return searchLines.includes(bus.linha);
-            });
+            // Remove marcadores antigos
+            for (let ordem in busMarkers) {
+                busMarkers[ordem].setMap(null);
+            }
+            busMarkers = {};
 
-            filteredBuses.forEach(function(bus) {
-                var ordem = bus.ordem;
-                var lat = parseFloat(bus.latitude.replace(',', '.'));
-                var lon = parseFloat(bus.longitude.replace(',', '.'));
-                var linha = bus.linha;
+            busesData.forEach(bus => {
+                const linha = bus.linha.toUpperCase();
+                if (searchLines.length === 0 || searchLines.includes(linha)) {
+                    const lat = parseFloat(bus.latitude);
+                    const lon = parseFloat(bus.longitude);
+                    if (isNaN(lat) || isNaN(lon)) return;
 
-                if (!lineColors[linha]) {
-                    lineColors[linha] = getRandomColor();
-                }
+                    if (!lineColors[linha]) lineColors[linha] = getRandomColor();
 
-                var icon = {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 8,
-                    fillColor: lineColors[linha],
-                    fillOpacity: 1,
-                    strokeWeight: 1
-                };
+                    const icon = {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 6,
+                        fillColor: lineColors[linha],
+                        fillOpacity: 1,
+                        strokeWeight: 1
+                    };
 
-                if (busMarkers[ordem]) {
-                    busMarkers[ordem].setPosition({ lat: lat, lng: lon });
-                } else {
-                    busMarkers[ordem] = new google.maps.Marker({
-                        position: { lat: lat, lng: lon },
-                        map: map,
-                        icon: icon,
-                        title: "Linha: " + linha + " | Ordem: " + ordem
+                    busMarkers[bus.ordem] = new google.maps.Marker({
+                        position: { lat, lng: lon },
+                        map,
+                        icon,
+                        title: `Linha: ${linha} | Ordem: ${bus.ordem}`
                     });
                 }
             });
         }
-
-        function locateUser() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(initializeMap, handleLocationError);
-            } else {
-                alert("Geolocalização não é suportada pelo seu navegador.");
-            }
-        }
-
-        // Inicializa a localização ao carregar a página
-        locateUser();
     </script>
 
     <!-- Carregue a API do Google Maps com sua chave -->
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDIXNb9QQ6gREN8imJ4_UIDFn1HOfAAQ1o&callback=initializeMap"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initializeMap"></script>
 </body>
 </html>
