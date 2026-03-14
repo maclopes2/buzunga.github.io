@@ -3,104 +3,149 @@
 <head>
     <title>Buzunga Rio. Encontre seu ônibus!!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; }
-        #map { height: calc(100% - 60px); width: 100%; }
-        #search { padding: 10px; background-color: #fff; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); display: flex; }
-        #search input { flex: 1; margin-right: 10px; }
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            height: calc(100% - 60px);
+            width: 100%;
+        }
+
+        #search {
+            padding: 10px;
+            background-color: #fff;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .marker-label {
+            background-color: #333;
+            color: #fff;
+            border-radius: 5px;
+            padding: 2px 5px;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1.2;
+        }
     </style>
 </head>
 <body>
     <div id="search">
-        <input type="text" id="busLine" placeholder="Digite as linhas (ex: 805, 309)" />
+        <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
         <button onclick="filterBuses()">Buscar</button>
     </div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-        let map;
-        let busMarkers = {};
-        let busesData = [];
-        let lineColors = {};
+        var map;
+        var busMarkers = {};
+        var busesData = [];
+        var lineColors = {};
 
         function getRandomColor() {
-            return '#' + Math.floor(Math.random()*16777215).toString(16);
+            var letters = '0123456789ABCDEF';
+            var color = '#';
+            for (var i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
         }
 
-        function initMap() {
-            // Localização padrão (Centro do Rio) caso geolocalização falhe
-            const defaultLocation = { lat: -22.9068, lng: -43.1729 };
+        function initializeMap(position) {
+            var userLat = position.coords.latitude;
+            var userLng = position.coords.longitude;
+
             map = new google.maps.Map(document.getElementById("map"), {
-                center: defaultLocation,
-                zoom: 13
+                center: { lat: userLat, lng: userLng },
+                zoom: 15
             });
 
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    const userLat = pos.coords.latitude;
-                    const userLng = pos.coords.longitude;
-                    map.setCenter({ lat: userLat, lng: userLng });
-                    new google.maps.Marker({
-                        position: { lat: userLat, lng: userLng },
-                        map: map,
-                        title: "Sua localização"
-                    });
-                });
-            }
+            new google.maps.Marker({
+                position: { lat: userLat, lng: userLng },
+                map: map,
+                title: "Sua localização"
+            });
 
-            updateBuses();
             setInterval(updateBuses, 60000);
+            updateBuses();
+        }
+
+        function handleLocationError(error) {
+            console.log("Erro ao obter localização:", error.message);
+            alert("Não foi possível obter sua localização. Verifique as permissões do navegador.");
         }
 
         function updateBuses() {
             axios.get('https://dados.mobilidade.rio/gps/sppo')
-                .then(response => {
+                .then(function (response) {
                     busesData = response.data;
                     filterBuses();
                 })
-                .catch(error => console.error("Erro ao buscar dados:", error));
+                .catch(function (error) {
+                    console.log(error);
+                });
         }
 
         function filterBuses() {
-            const searchValue = document.getElementById('busLine').value.trim();
-            const searchLines = searchValue ? searchValue.split(',').map(l => l.trim()) : [];
+            var searchValue = document.getElementById('busLine').value.trim();
+            var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
 
-            // Remove marcadores antigos
-            for (let ordem in busMarkers) {
-                busMarkers[ordem].setMap(null);
-            }
-            busMarkers = {};
+            var filteredBuses = busesData.filter(function(bus) {
+                return searchLines.includes(bus.linha);
+            });
 
-            busesData.forEach(bus => {
-                if (searchLines.length === 0 || searchLines.includes(bus.linha)) {
-                    const lat = parseFloat(bus.latitude.replace(',', '.'));
-                    const lon = parseFloat(bus.longitude.replace(',', '.'));
-                    const ordem = bus.ordem;
-                    const linha = bus.linha;
+            filteredBuses.forEach(function(bus) {
+                var ordem = bus.ordem;
+                var lat = parseFloat(bus.latitude.replace(',', '.'));
+                var lon = parseFloat(bus.longitude.replace(',', '.'));
+                var linha = bus.linha;
 
-                    if (!lineColors[linha]) lineColors[linha] = getRandomColor();
+                if (!lineColors[linha]) {
+                    lineColors[linha] = getRandomColor();
+                }
 
-                    const icon = {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        scale: 6,
-                        fillColor: lineColors[linha],
-                        fillOpacity: 1,
-                        strokeWeight: 1
-                    };
+                var icon = {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: lineColors[linha],
+                    fillOpacity: 1,
+                    strokeWeight: 1
+                };
 
+                if (busMarkers[ordem]) {
+                    busMarkers[ordem].setPosition({ lat: lat, lng: lon });
+                } else {
                     busMarkers[ordem] = new google.maps.Marker({
-                        position: { lat, lng: lon },
+                        position: { lat: lat, lng: lon },
                         map: map,
                         icon: icon,
-                        title: `Linha: ${linha} | Ordem: ${ordem}`
+                        title: "Linha: " + linha + " | Ordem: " + ordem
                     });
                 }
             });
         }
+
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(initializeMap, handleLocationError);
+            } else {
+                alert("Geolocalização não é suportada pelo seu navegador.");
+            }
+        }
+
+        // Inicializa a localização ao carregar a página
+        locateUser();
     </script>
 
-    <!-- Substitua pela sua chave válida -->
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=SUA_CHAVE_AQUI&callback=initMap"></script>
+    <!-- Carregue a API do Google Maps com sua chave -->
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDIXNb9QQ6gREN8imJ4_UIDFn1HOfAAQ1o&callback=initializeMap"></script>
 </body>
 </html>
