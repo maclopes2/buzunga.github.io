@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <title>Buzunga Rio - Trajetos e GPS</title>
+    <title>Buzunga Rio - Encontre seu ônibus</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -13,17 +13,18 @@
         #busLine { flex: 1; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
         button { padding: 8px 12px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
         
-        .leaflet-marker-icon { transition: all 1.5s linear !important; }
+        /* EFEITO DE DESLIZE: Faz o ícone se mover suavemente */
+        .leaflet-marker-icon {
+            transition: all 1.5s linear !important;
+        }
+
         .marker-label { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; font-size: 10px; padding: 2px 5px; border-radius: 4px; white-space: nowrap; }
-        
-        /* Estilo para os pontos de ônibus */
-        .stop-icon { background: #ffffff; border: 2px solid #007bff; border-radius: 50%; }
     </style>
 </head>
 <body>
 
 <div id="search">
-    <input type="text" id="busLine" placeholder="Ex: 474 ou 315">
+    <input type="text" id="busLine" placeholder="Digite a linha (ex: 474 ou 474,315)">
     <button onclick="updateBuses()">Buscar</button>
 </div>
 
@@ -37,10 +38,6 @@
     var busesData = [];
     var busMarkers = {}; 
     var lineColors = {};
-    var routeLayer; // Camada da linha azul do trajeto
-    var stopsLayer = L.layerGroup(); // Camada dos pontos de ônibus
-
-    const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
 
     function randomColor() {
         const colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080'];
@@ -48,15 +45,19 @@
     }
 
     function initializeMap(position) {
-        map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
+        var lat = position.coords.latitude;
+        var lon = position.coords.longitude;
+        map = L.map('map').setView([lat, lon], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-        stopsLayer.addTo(map);
+        L.marker([lat, lon]).addTo(map).bindPopup("Você está aqui").openPopup();
 
         updateBuses();
         setInterval(updateBuses, 15000); 
     }
 
     function updateBuses() {
+        const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
+
         axios.get(workerUrl)
             .then(function (response) {
                 if (Array.isArray(response.data)) {
@@ -64,7 +65,9 @@
                     renderBuses();
                 }
             })
-            .catch(err => console.error("Erro no GPS:", err));
+            .catch(function (error) {
+                console.error("Erro no Worker:", error);
+            });
     }
 
     function renderBuses() {
@@ -80,6 +83,7 @@
 
             var ordem = bus.ordem;
             activeOrders.push(ordem);
+
             var lat = parseFloat(bus.latitude.toString().replace(",", "."));
             var lon = parseFloat(bus.longitude.toString().replace(",", "."));
             var vel = bus.velocidade || 0;
@@ -94,15 +98,16 @@
             });
 
             if (busMarkers[ordem]) {
+                // MOVE O ÔNIBUS (O CSS faz deslizar)
                 busMarkers[ordem].setLatLng([lat, lon]);
+                busMarkers[ordem].setPopupContent(`<b>Linha: ${linhaBus}</b><br>Ônibus: ${ordem}<br>Velocidade: ${vel} km/h`);
             } else {
+                // CRIA NOVO
                 busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
-                    .on('click', () => loadRouteAndStops(linhaBus)) // CLIQUE PARA VER TRAJETO
-                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Velocidade: ${vel} km/h<br><small>Clique no ícone para ver o trajeto</small>`);
+                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Ônibus: ${ordem}<br>Velocidade: ${vel} km/h`);
             }
         });
 
-        // Limpeza de ônibus que saíram do radar
         for (let id in busMarkers) {
             if (!activeOrders.includes(id)) {
                 map.removeLayer(busMarkers[id]);
@@ -111,27 +116,13 @@
         }
     }
 
-    // FUNÇÃO PARA CARREGAR TRAJETO E PONTOS
-    function loadRouteAndStops(linha) {
-        // Limpa o que já existe no mapa
-        if (routeLayer) map.removeLayer(routeLayer);
-        stopsLayer.clearLayers();
-
-        // Buscando dados geográficos (Usando o Data.rio via seu Worker)
-        // Nota: O seu worker atual aponta fixo para o GPS. Para o trajeto funcionar perfeito,
-        // o ideal seria o worker aceitar uma URL dinâmica, mas vamos simular a busca:
-        console.log("Buscando trajeto para linha: " + linha);
-        
-        // Aqui você pode integrar com o GeoJSON da prefeitura futuramente.
-        // Por enquanto, o sistema focará em destacar o ônibus selecionado.
-        alert("Buscando trajeto e pontos da linha " + linha + " no banco de dados...");
-    }
-
     function locateUser() {
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(initializeMap, () => {
+            navigator.geolocation.getCurrentPosition(initializeMap, function () {
                 initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
             });
+        } else {
+            initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
         }
     }
 
