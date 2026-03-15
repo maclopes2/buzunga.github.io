@@ -7,56 +7,50 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body, html { height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
         #map { height: calc(100% - 60px); width: 100%; }
-        #search { padding: 10px; background: #f8f9fa; display: flex; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 1000; position: relative; }
-        #busLine { flex: 1; padding: 10px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px; outline: none; }
-        #busLine:focus { border-color: #28a745; }
-        button { padding: 10px 20px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 8px; font-weight: bold; transition: 0.3s; }
-        button:hover { background: #218838; }
-
-        /* DESIGN DO NOVO ÍCONE */
-        .bus-container {
+        #search { padding: 10px; background: white; display: flex; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; position: relative; }
+        #busLine { flex: 1; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 12px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        
+        /* ESTILO DO ÍCONE CIRCULAR */
+        .bus-wrapper {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
 
-        .bus-icon-circle {
-            width: 32px;
-            height: 32px;
+        .bus-circle {
+            width: 30px;
+            height: 30px;
             background: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
             border: 2px solid;
-            z-index: 2;
+            font-size: 16px;
         }
 
-        .bus-label-new {
-            background: #333;
+        .bus-tag {
+            background: rgba(0,0,0,0.8);
             color: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 11px;
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-top: -2px;
             font-weight: bold;
-            margin-top: -4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            z-index: 3;
+            white-space: nowrap;
         }
 
-        /* ANIMAÇÃO DE DESLIZE */
-        .leaflet-marker-icon {
-            transition: all 1.5s linear !important;
-        }
+        .leaflet-marker-icon { transition: all 1.5s linear !important; }
     </style>
 </head>
 <body>
 
 <div id="search">
-    <input type="text" id="busLine" placeholder="Ex: 474 ou 315, 483">
+    <input type="text" id="busLine" placeholder="Digite a linha (ex: 474,315)">
     <button onclick="updateBuses()">Buscar</button>
 </div>
 
@@ -67,9 +61,10 @@
 
 <script>
     var map;
-    var busesData = [];
     var busMarkers = {}; 
     var lineColors = {};
+    // Usei o seu Worker direto, sem o corsproxy.io que deu erro 403
+    const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
 
     function randomColor() {
         const colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#008080', '#f032e6'];
@@ -77,39 +72,34 @@
     }
 
     function initializeMap(position) {
-        var lat = position.coords.latitude;
-        var lon = position.coords.longitude;
-        map = L.map('map').setView([lat, lon], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
-            attribution: '© OpenStreetMap' 
-        }).addTo(map);
-
-        // Marcador do Usuário
-        L.circleMarker([lat, lon], { radius: 8, color: 'white', fillColor: '#007bff', fillOpacity: 1, weight: 3 }).addTo(map).bindPopup("Você");
+        map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        
+        L.marker([position.coords.latitude, position.coords.longitude]).addTo(map).bindPopup("Você");
 
         updateBuses();
         setInterval(updateBuses, 15000); 
     }
 
     function updateBuses() {
-        const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
-        axios.get(workerUrl).then(function (response) {
-            if (Array.isArray(response.data)) {
-                busesData = response.data;
-                renderBuses();
-            }
-        }).catch(err => console.error("Erro no Worker:", err));
+        axios.get(workerUrl)
+            .then(function (response) {
+                // Tratamento para garantir que response.data seja um array
+                const data = Array.isArray(response.data) ? response.data : [];
+                renderBuses(data);
+            })
+            .catch(err => console.error("Erro ao carregar ônibus:", err));
     }
 
-    function renderBuses() {
+    function renderBuses(buses) {
         var search = document.getElementById("busLine").value.trim().toUpperCase();
-        if (!search || !Array.isArray(busesData)) return;
+        if (!search) return;
 
         var lines = search.split(",").map(l => l.trim());
         let activeOrders = [];
 
-        busesData.forEach(function (bus) {
-            var linhaBus = bus.linha ? bus.linha.toString().toUpperCase() : "";
+        buses.forEach(function (bus) {
+            var linhaBus = (bus.linha || "").toString().toUpperCase();
             if (!lines.includes(linhaBus)) return;
 
             var ordem = bus.ordem;
@@ -117,33 +107,30 @@
 
             var lat = parseFloat(bus.latitude.toString().replace(",", "."));
             var lon = parseFloat(bus.longitude.toString().replace(",", "."));
-            var vel = bus.velocidade || 0;
 
             if (!lineColors[linhaBus]) lineColors[linhaBus] = randomColor();
 
-            // CONSTRUÇÃO DO ÍCONE MELHORADO
             var iconHtml = `
-                <div class="bus-container">
-                    <div class="bus-icon-circle" style="border-color: ${lineColors[linhaBus]}; color: ${lineColors[linhaBus]};">
+                <div class="bus-wrapper">
+                    <div class="bus-circle" style="border-color: ${lineColors[linhaBus]}; color: ${lineColors[linhaBus]};">
                         <i class="fas fa-bus"></i>
                     </div>
-                    <div class="bus-label-new">${linhaBus}</div>
+                    <div class="bus-tag">${linhaBus}</div>
                 </div>
             `;
 
             var icon = L.divIcon({
-                className: 'custom-div-icon',
+                className: 'custom-icon',
                 html: iconHtml,
-                iconSize: [40, 45],
-                iconAnchor: [20, 40]
+                iconSize: [30, 42],
+                iconAnchor: [15, 30]
             });
 
             if (busMarkers[ordem]) {
                 busMarkers[ordem].setLatLng([lat, lon]);
-                busMarkers[ordem].setPopupContent(`<b>Linha: ${linhaBus}</b><br>Velocidade: ${vel} km/h`);
             } else {
                 busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
-                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Velocidade: ${vel} km/h`);
+                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Ordem: ${ordem}`);
             }
         });
 
@@ -157,7 +144,7 @@
 
     function locateUser() {
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(initializeMap, function () {
+            navigator.geolocation.getCurrentPosition(initializeMap, () => {
                 initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
             });
         }
