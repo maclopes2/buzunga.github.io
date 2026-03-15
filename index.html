@@ -3,6 +3,7 @@
 <head>
     <title>Buzunga Rio. Encontre seu ônibus!!</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         body, html {
@@ -25,7 +26,27 @@
             justify-content: space-between;
         }
 
-        .marker-label {
+        .custom-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            background-color: #333;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 30px;
+            border: 1px solid #FFFFFF;
+        }
+
+        .custom-marker .marker-label {
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
             background-color: #333;
             color: #fff;
             border-radius: 5px;
@@ -43,6 +64,7 @@
     </div>
     <div id="map"></div>
 
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
         var map;
@@ -63,16 +85,19 @@
             var userLat = position.coords.latitude;
             var userLng = position.coords.longitude;
 
-            map = new google.maps.Map(document.getElementById("map"), {
-                center: { lat: userLat, lng: userLng },
-                zoom: 15
-            });
+            map = L.map('map').setView([userLat, userLng], 15);
 
-            new google.maps.Marker({
-                position: { lat: userLat, lng: userLng },
-                map: map,
-                title: "Sua localização"
-            });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            L.marker([userLat, userLng], { icon: L.icon({ 
+                iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
+                iconSize: [25, 41], 
+                iconAnchor: [12, 41], 
+                popupAnchor: [1, -34], 
+                shadowSize: [41, 41] 
+            }) }).addTo(map).bindPopup("Sua localização").openPopup();
 
             setInterval(updateBuses, 60000);
             updateBuses();
@@ -81,6 +106,28 @@
         function handleLocationError(error) {
             console.log("Erro ao obter localização:", error.message);
             alert("Não foi possível obter sua localização. Verifique as permissões do navegador.");
+        }
+
+        function animateMarker(marker, newLatLng) {
+            var startLatLng = marker.getLatLng();
+            var duration = 3000;
+            var startTime = performance.now();
+
+            function moveMarker(currentTime) {
+                var elapsedTime = currentTime - startTime;
+                var t = Math.min(elapsedTime / duration, 1);
+
+                var lat = startLatLng.lat + (newLatLng[0] - startLatLng.lat) * t;
+                var lng = startLatLng.lng + (newLatLng[1] - startLatLng.lng) * t;
+
+                marker.setLatLng([lat, lng]);
+
+                if (t < 1) {
+                    requestAnimationFrame(moveMarker);
+                }
+            }
+
+            requestAnimationFrame(moveMarker);
         }
 
         function updateBuses() {
@@ -112,23 +159,19 @@
                     lineColors[linha] = getRandomColor();
                 }
 
-                var icon = {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 8,
-                    fillColor: lineColors[linha],
-                    fillOpacity: 1,
-                    strokeWeight: 1
-                };
+                var icon = L.divIcon({
+                    className: 'custom-marker',
+                    html: '<i class="fas fa-bus" style="font-size: 18px; color: ' + lineColors[linha] + ';"></i><div class="marker-label" style="background-color: ' + lineColors[linha] + ';">' + linha + '</div>',
+                    iconSize: [30, 42],
+                    iconAnchor: [15, 42]
+                });
 
                 if (busMarkers[ordem]) {
-                    busMarkers[ordem].setPosition({ lat: lat, lng: lon });
+                    animateMarker(busMarkers[ordem], [lat, lon]);
+                    busMarkers[ordem].setIcon(icon);
                 } else {
-                    busMarkers[ordem] = new google.maps.Marker({
-                        position: { lat: lat, lng: lon },
-                        map: map,
-                        icon: icon,
-                        title: "Linha: " + linha + " | Ordem: " + ordem
-                    });
+                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
+                        .bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
                 }
             });
         }
@@ -141,11 +184,7 @@
             }
         }
 
-        // Inicializa a localização ao carregar a página
         locateUser();
     </script>
-
-    <!-- Carregue a API do Google Maps com sua chave -->
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDIXNb9QQ6gREN8imJ4_UIDFn1HOfAAQ1o&callback=initializeMap"></script>
 </body>
 </html>
