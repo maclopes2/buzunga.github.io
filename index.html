@@ -1,53 +1,132 @@
-<style>
-    /* ... seus estilos anteriores ... */
-    .bus-stop {
-        background: white;
-        border: 2px solid #007bff;
-        border-radius: 50%;
-    }
-</style>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <title>Buzunga Rio - Encontre seu ônibus</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: calc(100% - 60px); width: 100%; }
+        #search { padding: 10px; background: white; display: flex; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; position: relative; }
+        #busLine { flex: 1; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 12px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        
+        /* EFEITO DE DESLIZE: Faz o ícone se mover suavemente */
+        .leaflet-marker-icon {
+            transition: all 1.5s linear !important;
+        }
+
+        .marker-label { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; font-size: 10px; padding: 2px 5px; border-radius: 4px; white-space: nowrap; }
+    </style>
+</head>
+<body>
+
+<div id="search">
+    <input type="text" id="busLine" placeholder="Digite a linha (ex: 474 ou 474,315)">
+    <button onclick="updateBuses()">Buscar</button>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
 <script>
-    // Variáveis globais novas
-    var currentRouteLayer; // Para guardar o desenho do trajeto
-    var stopsLayer = L.layerGroup(); // Para agrupar os pontos de ônibus
+    var map;
+    var busesData = [];
+    var busMarkers = {}; 
+    var lineColors = {};
 
-    // ... (funções initializeMap e updateBuses continuam as mesmas)
+    function randomColor() {
+        const colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080'];
+        return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function initializeMap(position) {
+        var lat = position.coords.latitude;
+        var lon = position.coords.longitude;
+        map = L.map('map').setView([lat, lon], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        L.marker([lat, lon]).addTo(map).bindPopup("Você está aqui").openPopup();
+
+        updateBuses();
+        setInterval(updateBuses, 15000); 
+    }
+
+    function updateBuses() {
+        const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
+
+        axios.get(workerUrl)
+            .then(function (response) {
+                if (Array.isArray(response.data)) {
+                    busesData = response.data;
+                    renderBuses();
+                }
+            })
+            .catch(function (error) {
+                console.error("Erro no Worker:", error);
+            });
+    }
 
     function renderBuses() {
-        // ... (lógica de renderização dos ônibus continua igual)
-        
-        // No momento de criar o marcador do ônibus, adicionamos o evento de clique:
-        if (busMarkers[ordem]) {
-            busMarkers[ordem].setLatLng([lat, lon]);
-        } else {
-            busMarkers[ordem] = L.marker([lat, lon], { icon: icon })
-                .addTo(map)
-                .on('click', function() {
-                    mostrarTrajeto(linhaBus);
-                })
-                .bindPopup(`<b>Linha: ${linhaBus}</b><br>Clique para ver o trajeto.`);
+        var search = document.getElementById("busLine").value.trim();
+        if (!search || !Array.isArray(busesData)) return;
+
+        var lines = search.split(",").map(l => l.trim().toUpperCase());
+        let activeOrders = [];
+
+        busesData.forEach(function (bus) {
+            var linhaBus = bus.linha ? bus.linha.toString().toUpperCase() : "";
+            if (!lines.includes(linhaBus)) return;
+
+            var ordem = bus.ordem;
+            activeOrders.push(ordem);
+
+            var lat = parseFloat(bus.latitude.toString().replace(",", "."));
+            var lon = parseFloat(bus.longitude.toString().replace(",", "."));
+            var vel = bus.velocidade || 0;
+
+            if (!lineColors[linhaBus]) lineColors[linhaBus] = randomColor();
+
+            var icon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="color:${lineColors[linhaBus]}; font-size:22px; text-shadow: 1px 1px 2px #000;"><i class="fas fa-bus"></i><div class="marker-label">${linhaBus}</div></div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+
+            if (busMarkers[ordem]) {
+                // MOVE O ÔNIBUS (O CSS faz deslizar)
+                busMarkers[ordem].setLatLng([lat, lon]);
+                busMarkers[ordem].setPopupContent(`<b>Linha: ${linhaBus}</b><br>Ônibus: ${ordem}<br>Velocidade: ${vel} km/h`);
+            } else {
+                // CRIA NOVO
+                busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
+                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Ônibus: ${ordem}<br>Velocidade: ${vel} km/h`);
+            }
+        });
+
+        for (let id in busMarkers) {
+            if (!activeOrders.includes(id)) {
+                map.removeLayer(busMarkers[id]);
+                delete busMarkers[id];
+            }
         }
     }
 
-    function mostrarTrajeto(linha) {
-        // Remove trajeto anterior se existir
-        if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-        
-        console.log("Buscando trajeto da linha: " + linha);
-        
-        // URL da API de itinerários (exemplo conceitual - requer endpoint de GeoJSON do Data.Rio)
-        // Como trajetos são fixos, o ideal é ter um arquivo JSON com eles ou usar o Overpass API (OpenStreetMap)
-        const rotaUrl = `https://itinerarios.mobilidade.rio/api/v1/itinerario/${linha}`;
-
-        axios.get(workerUrl + "?url=" + encodeURIComponent(rotaUrl)) // Usando seu worker
-            .then(function(response) {
-                // Aqui desenhamos a linha no mapa
-                // Supondo que a resposta seja um conjunto de coordenadas
-                var coordenadas = response.data.map(p => [p.lat, p.lon]);
-                currentRouteLayer = L.polyline(coordenadas, {color: 'blue', weight: 5, opacity: 0.6}).addTo(map);
-                map.fitBounds(currentRouteLayer.getBounds()); // Ajusta o zoom para ver o trajeto todo
-            })
-            .catch(err => console.log("Trajeto não encontrado para esta linha."));
+    function locateUser() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(initializeMap, function () {
+                initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
+            });
+        } else {
+            initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
+        }
     }
+
+    locateUser();
 </script>
+</body>
+</html>
