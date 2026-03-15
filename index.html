@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 
 <head>
     <title>Buzunga Rio - Encontre seu ônibus</title>
@@ -21,8 +21,7 @@
             position: relative;
         }
         #busLine { flex: 1; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
-        button { padding: 8px 12px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; }
-        button:hover { background: #0056b3; }
+        button { padding: 8px 12px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
         .marker-label {
             position: absolute;
             top: 22px;
@@ -41,7 +40,7 @@
 <body>
 
     <div id="search">
-        <input type="text" id="busLine" placeholder="Linha (ex: 474 ou 474,315)">
+        <input type="text" id="busLine" placeholder="Digite a linha (ex: 474 ou 474,315)">
         <button onclick="updateBuses()">Buscar</button>
     </div>
 
@@ -53,12 +52,12 @@
     <script>
         var map;
         var busesData = [];
-        var busMarkers = {}; // Guarda os marcadores ativos por 'ordem'
+        var busMarkers = {}; // Armazena os marcadores ativos
         var lineColors = {};
         var userLocationMarker;
 
         function randomColor() {
-            const colors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe'];
+            const colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080'];
             return colors[Math.floor(Math.random() * colors.length)];
         }
 
@@ -74,74 +73,76 @@
 
             userLocationMarker = L.marker([lat, lon]).addTo(map).bindPopup("Você está aqui").openPopup();
 
-            // Primeira busca automática
+            // Inicia o ciclo de atualização
             updateBuses();
-            // Atualiza a cada 15 segundos (respeitando o servidor da prefeitura)
-            setInterval(updateBuses, 15000);
+            setInterval(updateBuses, 15000); // 15 segundos é o ideal para o GPS do Rio
         }
 
-function updateBuses() {
-    // Substitua pela URL que o Cloudflare gerou para você:
-    const minhaUrlWorker = "https://flat-meadow-e697.maclopes2.workers.dev/";
+        function updateBuses() {
+            // SUA URL DO WORKER CLOUDFLARE
+            const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
 
-    axios.get(minhaUrlWorker)
-        .then(function(response) {
-            busesData = response.data;
-            renderBuses();
-        })
-        .catch(function(error) {
-            console.log("Erro no Worker:", error);
-        });
-}
+            console.log("Solicitando dados ao seu Worker...");
+
+            axios.get(workerUrl)
+                .then(function (response) {
+                    busesData = response.data;
+                    renderBuses();
+                })
+                .catch(function (error) {
+                    console.error("Erro ao carregar dados do Worker:", error);
+                });
+        }
 
         function renderBuses() {
             var search = document.getElementById("busLine").value.trim();
             if (!search) return;
 
+            // Transforma o input em uma lista de linhas em maiúsculas
             var lines = search.split(",").map(l => l.trim().toUpperCase());
 
-            // 1. Identificar quais ordens estão nesta atualização
-            let currentOrders = [];
+            // Lista para saber quais ônibus continuam ativos nesta rodada
+            let activeOrders = [];
 
             busesData.forEach(function (bus) {
-                // Filtra pela linha digitada
-                if (!lines.includes(bus.linha.toString().toUpperCase())) return;
+                var linhaBus = bus.linha ? bus.linha.toString().toUpperCase() : "";
+                
+                if (!lines.includes(linhaBus)) return;
 
                 var ordem = bus.ordem;
-                var linha = bus.linha;
-                currentOrders.push(ordem);
+                activeOrders.push(ordem);
 
-                // Tratamento de coordenadas (troca vírgula por ponto)
+                // Tratamento de latitude/longitude para garantir que sejam números
                 var lat = parseFloat(bus.latitude.toString().replace(",", "."));
                 var lon = parseFloat(bus.longitude.toString().replace(",", "."));
 
-                if (!lineColors[linha]) lineColors[linha] = randomColor();
+                if (!lineColors[linhaBus]) lineColors[linhaBus] = randomColor();
 
                 var icon = L.divIcon({
                     className: 'custom-marker',
                     html: `
-                        <div style="color:${lineColors[linha]}; font-size:22px; text-shadow: 1px 1px 2px #000;">
+                        <div style="color:${lineColors[linhaBus]}; font-size:22px; text-shadow: 1px 1px 2px #000;">
                             <i class="fas fa-bus"></i>
-                            <div class="marker-label">${linha}</div>
+                            <div class="marker-label">${linhaBus}</div>
                         </div>`,
                     iconSize: [30, 30],
                     iconAnchor: [15, 15]
                 });
 
                 if (busMarkers[ordem]) {
-                    // Se o ônibus já existe, apenas move
+                    // Move o ônibus se ele já existe
                     busMarkers[ordem].setLatLng([lat, lon]);
                 } else {
-                    // Se é novo, cria o marcador
+                    // Cria um novo se ele apareceu agora
                     busMarkers[ordem] = L.marker([lat, lon], { icon: icon })
                         .addTo(map)
-                        .bindPopup(`<b>Linha: ${linha}</b><br>Ordem: ${ordem}<br>Atualizado: ${bus.dataHora}`);
+                        .bindPopup(`<b>Linha: ${linhaBus}</b><br>Ônibus: ${ordem}<br>GPS em: ${bus.dataHora}`);
                 }
             });
 
-            // 2. Remover do mapa ônibus que sumiram do GPS ou mudaram de linha na busca
+            // Remove do mapa os ônibus que não estão na lista de ativos (mudaram de linha ou sumiram do GPS)
             for (let id in busMarkers) {
-                if (!currentOrders.includes(id)) {
+                if (!activeOrders.includes(id)) {
                     map.removeLayer(busMarkers[id]);
                     delete busMarkers[id];
                 }
@@ -151,11 +152,12 @@ function updateBuses() {
         function locateUser() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(initializeMap, function () {
-                    // Fallback se o GPS falhar (centraliza no Centro do Rio)
+                    // Fallback para o Centro do Rio se o usuário negar o GPS
                     initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
                 });
             } else {
                 alert("Seu navegador não suporta geolocalização.");
+                initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
             }
         }
 
