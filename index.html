@@ -1,110 +1,43 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <title>Buzunga Rio - Encontre seu ônibus</title>
+    <title>Buzunga Rio - GPS Limpo</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #map { height: calc(100% - 60px); width: 100%; background: #f0f0f0; }
+        body, html { height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: calc(100% - 60px); width: 100%; }
+        #search { padding: 10px; background: white; display: flex; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; position: relative; }
+        #busLine { flex: 1; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 12px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
         
-        #search { 
-            padding: 10px; 
-            background: #ffffff; 
-            display: flex; 
-            gap: 10px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
-            z-index: 1000; 
-            position: relative; 
+        /* O segredo do deslize suave */
+        .leaflet-marker-icon { 
+            transition: all 1.5s linear !important; 
         }
 
-        #busLine { 
-            flex: 1; 
-            padding: 12px; 
-            font-size: 16px; 
-            border: 2px solid #eee; 
-            border-radius: 8px; 
-            outline: none;
-            transition: border-color 0.3s;
-        }
-
-        #busLine:focus { border-color: #28a745; }
-
-        button { 
-            padding: 0 20px; 
-            cursor: pointer; 
-            background: #28a745; 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-weight: bold; 
-            transition: background 0.3s;
-        }
-
-        button:hover { background: #218838; }
-
-        /* --- ESTILIZAÇÃO DOS NOVOS ÍCONES --- */
-        .leaflet-marker-icon {
-            transition: all 1.5s linear !important;
-        }
-
-        .bus-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .bus-icon-circle {
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
+        /* NOVO ESTILO: Marcador em forma de bolinha colorida */
+        .bus-marker-dot {
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 16px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-            border: 2px solid white;
-            position: relative;
-        }
-
-        /* Efeito de pulso suave */
-        .bus-icon-circle::after {
-            content: '';
-            position: absolute;
-            width: 100%;
-            height: 100%;
             border-radius: 50%;
-            background: inherit;
-            opacity: 0.4;
-            animation: pulse 2s infinite;
-            z-index: -1;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.4; }
-            100% { transform: scale(1.6); opacity: 0; }
-        }
-
-        .bus-label {
-            background: #333;
             color: white;
-            font-size: 11px;
             font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 10px;
-            margin-top: 4px;
+            font-size: 11px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 2px solid white;
             white-space: nowrap;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            padding: 2px 5px;
         }
     </style>
 </head>
 <body>
 
 <div id="search">
-    <input type="text" id="busLine" placeholder="Digite a linha (ex: 474 ou 474,315)">
+    <input type="text" id="busLine" placeholder="Linha (ex: 474 ou 315)">
     <button onclick="updateBuses()">Buscar</button>
 </div>
 
@@ -119,36 +52,28 @@
     var busMarkers = {}; 
     var lineColors = {};
 
+    // SUA URL DO WORKER CLOUDFLARE
+    const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
+
     function randomColor() {
-        // Cores modernas e vibrantes
-        const colors = ['#007bff', '#6610f2', '#6f42c1', '#e83e8c', '#dc3545', '#fd7e14', '#ffc107', '#28a745', '#20c997', '#17a2b8'];
+        const colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080'];
         return colors[Math.floor(Math.random() * colors.length)];
     }
 
     function initializeMap(position) {
-        var lat = position.coords.latitude;
-        var lon = position.coords.longitude;
-        map = L.map('map').setView([lat, lon], 14);
+        map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
             attribution: '© OpenStreetMap' 
         }).addTo(map);
 
-        // Ícone customizado para o usuário
-        L.circleMarker([lat, lon], {
-            radius: 8,
-            fillColor: "#007bff",
-            color: "#fff",
-            weight: 3,
-            fillOpacity: 1
-        }).addTo(map).bindPopup("Você está aqui");
+        L.marker([position.coords.latitude, position.coords.longitude])
+            .addTo(map).bindPopup("Você está aqui").openPopup();
 
         updateBuses();
         setInterval(updateBuses, 15000); 
     }
 
     function updateBuses() {
-        const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
-
         axios.get(workerUrl)
             .then(function (response) {
                 if (Array.isArray(response.data)) {
@@ -156,9 +81,7 @@
                     renderBuses();
                 }
             })
-            .catch(function (error) {
-                console.error("Erro no Worker:", error);
-            });
+            .catch(err => console.error("Erro na busca:", err));
     }
 
     function renderBuses() {
@@ -181,29 +104,24 @@
 
             if (!lineColors[linhaBus]) lineColors[linhaBus] = randomColor();
 
-            // HTML DO NOVO ÍCONE
-            var customHtml = `
-                <div class="bus-container">
-                    <div class="bus-icon-circle" style="background-color: ${lineColors[linhaBus]};">
-                        <i class="fas fa-bus"></i>
-                    </div>
-                    <div class="bus-label">${linhaBus}</div>
-                </div>
-            `;
-
+            // Ícone novo: bolinha colorida com número dentro
             var icon = L.divIcon({
-                className: 'custom-bus-marker',
-                html: customHtml,
-                iconSize: [40, 50],
-                iconAnchor: [20, 25]
+                className: '', // Limpa classes padrão
+                html: `<div class="bus-marker-dot" style="background-color: ${lineColors[linhaBus]};">
+                        ${linhaBus}
+                       </div>`,
+                iconSize: [35, 20], // Tamanho adaptado para o número
+                iconAnchor: [17, 10] // Âncora centralizada
             });
 
             if (busMarkers[ordem]) {
+                // MOVE O ÔNIBUS (O CSS faz deslizar)
                 busMarkers[ordem].setLatLng([lat, lon]);
-                busMarkers[ordem].setPopupContent(`<b>Linha: ${linhaBus}</b><br>Prefixo: ${ordem}<br>Velocidade: ${vel} km/h`);
+                busMarkers[ordem].setPopupContent(`<b>Linha: ${linhaBus}</b><br>Ônibus: ${ordem}<br>Velocidade: ${vel} km/h`);
             } else {
+                // CRIA NOVO
                 busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
-                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Prefixo: ${ordem}<br>Velocidade: ${vel} km/h`);
+                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Ônibus: ${ordem}<br>Velocidade: ${vel} km/h`);
             }
         });
 
