@@ -1,190 +1,192 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Buzunga Rio. Encontre seu ônibus!!</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
+<title>Buzunga Rio - Encontre seu ônibus</title>
 
-        #map {
-            height: calc(100% - 60px);
-            width: 100%;
-        }
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        #search {
-            padding: 10px;
-            background-color: #fff;
-            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
-        .custom-marker {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 5px;
-            background-color: #333;
-            color: #fff;
-            width: 30px;
-            height: 30px;
-            font-size: 12px;
-            font-weight: bold;
-            text-align: center;
-            line-height: 30px;
-            border: 1px solid #FFFFFF;
-        }
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"/>
 
-        .custom-marker .marker-label {
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #333;
-            color: #fff;
-            border-radius: 5px;
-            padding: 2px 5px;
-            font-size: 12px;
-            font-weight: bold;
-            line-height: 1.2;
-        }
-    </style>
+<style>
+
+body,html{
+height:100%;
+margin:0;
+}
+
+#map{
+height:calc(100% - 60px);
+}
+
+#search{
+padding:10px;
+background:white;
+display:flex;
+gap:10px;
+box-shadow:0 2px 5px rgba(0,0,0,0.2);
+}
+
+.custom-marker{
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+.marker-label{
+position:absolute;
+top:22px;
+left:50%;
+transform:translateX(-50%);
+background:#000;
+color:white;
+font-size:11px;
+padding:2px 4px;
+border-radius:4px;
+}
+
+</style>
 </head>
+
 <body>
-    <div id="search">
-        <input type="text" id="busLine" placeholder="Digite os números das linhas, separados por vírgula" />
-        <button onclick="filterBuses()">Buscar</button>
-    </div>
-    <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    <script>
-        var map;
-        var busMarkers = {};
-        var busesData = [];
-        var lineColors = {};
+<div id="search">
 
-        function getRandomColor() {
-            var letters = '0123456789ABCDEF';
-            var color = '#';
-            for (var i = 0; i < 6; i++) {
-                color += letters[Math.floor(Math.random() * 16)];
-            }
-            return color;
-        }
+<input id="busLine" placeholder="Digite as linhas (ex: 474,315)">
 
-        function initializeMap(position) {
-            var userLat = position.coords.latitude;
-            var userLng = position.coords.longitude;
+<button onclick="filterBuses()">Buscar</button>
 
-            map = L.map('map').setView([userLat, userLng], 15);
+</div>
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
+<div id="map"></div>
 
-            L.marker([userLat, userLng], { icon: L.icon({ 
-                iconUrl: 'https://unpkg.com/leaflet@1.6.0/dist/images/marker-icon.png', 
-                iconSize: [25, 41], 
-                iconAnchor: [12, 41], 
-                popupAnchor: [1, -34], 
-                shadowSize: [41, 41] 
-            }) }).addTo(map).bindPopup("Sua localização").openPopup();
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-            setInterval(updateBuses, 60000);
-            updateBuses();
-        }
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
-        function handleLocationError(error) {
-            console.log("Erro ao obter localização:", error.message);
-            alert("Não foi possível obter sua localização. Verifique as permissões do navegador.");
-        }
+<script>
 
-        function animateMarker(marker, newLatLng) {
-            var startLatLng = marker.getLatLng();
-            var duration = 3000;
-            var startTime = performance.now();
+let map
+let busesData=[]
+let busMarkers={}
+let lineColors={}
 
-            function moveMarker(currentTime) {
-                var elapsedTime = currentTime - startTime;
-                var t = Math.min(elapsedTime / duration, 1);
+function randomColor(){
 
-                var lat = startLatLng.lat + (newLatLng[0] - startLatLng.lat) * t;
-                var lng = startLatLng.lng + (newLatLng[1] - startLatLng.lng) * t;
+return "#"+Math.floor(Math.random()*16777215).toString(16)
 
-                marker.setLatLng([lat, lng]);
+}
 
-                if (t < 1) {
-                    requestAnimationFrame(moveMarker);
-                }
-            }
+function initMap(pos){
 
-            requestAnimationFrame(moveMarker);
-        }
+let lat=pos.coords.latitude
+let lng=pos.coords.longitude
 
-        function updateBuses() {
-            axios.get('https://dados.mobilidade.rio/gps/sppo')
-                .then(function (response) {
-                    busesData = response.data;
-                    filterBuses();
-                })
-                .catch(function (error) {
-                    console.log(error);
-                });
-        }
+map=L.map('map').setView([lat,lng],14)
 
-        function filterBuses() {
-            var searchValue = document.getElementById('busLine').value.trim();
-            var searchLines = searchValue.split(',').map(function(line) { return line.trim(); });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+attribution:'© OpenStreetMap'
+}).addTo(map)
 
-            var filteredBuses = busesData.filter(function(bus) {
-                return searchLines.includes(bus.linha);
-            });
+L.marker([lat,lng]).addTo(map).bindPopup("Sua localização")
 
-            filteredBuses.forEach(function(bus) {
-                var ordem = bus.ordem;
-                var lat = parseFloat(bus.latitude.replace(',', '.'));
-                var lon = parseFloat(bus.longitude.replace(',', '.'));
-                var linha = bus.linha;
+updateBuses()
 
-                if (!lineColors[linha]) {
-                    lineColors[linha] = getRandomColor();
-                }
+setInterval(updateBuses,15000)
 
-                var icon = L.divIcon({
-                    className: 'custom-marker',
-                    html: '<i class="fas fa-bus" style="font-size: 18px; color: ' + lineColors[linha] + ';"></i><div class="marker-label" style="background-color: ' + lineColors[linha] + ';">' + linha + '</div>',
-                    iconSize: [30, 42],
-                    iconAnchor: [15, 42]
-                });
+}
 
-                if (busMarkers[ordem]) {
-                    animateMarker(busMarkers[ordem], [lat, lon]);
-                    busMarkers[ordem].setIcon(icon);
-                } else {
-                    busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
-                        .bindPopup("Linha: " + linha + "<br>Ordem: " + ordem);
-                }
-            });
-        }
+function updateBuses(){
 
-        function locateUser() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(initializeMap, handleLocationError);
-            } else {
-                alert("Geolocalização não é suportada pelo seu navegador.");
-            }
-        }
+axios.get("https://dados.mobilidade.rio/gps/sppo")
 
-        locateUser();
-    </script>
+.then(res=>{
+
+busesData=res.data
+
+filterBuses()
+
+})
+
+.catch(err=>console.log(err))
+
+}
+
+function filterBuses(){
+
+let search=document.getElementById("busLine").value.trim()
+
+if(search==="") return
+
+let lines=search.split(",").map(l=>l.trim())
+
+let filtered=busesData.filter(bus=>lines.includes(bus.linha))
+
+filtered.forEach(bus=>{
+
+let ordem=bus.ordem
+let linha=bus.linha
+
+let lat=parseFloat(bus.latitude)
+let lon=parseFloat(bus.longitude)
+
+if(!lineColors[linha]){
+
+lineColors[linha]=randomColor()
+
+}
+
+let icon=L.divIcon({
+
+html:
+
+`<div class="custom-marker">
+
+<i class="fas fa-bus" style="color:${lineColors[linha]};font-size:18px"></i>
+
+<div class="marker-label">${linha}</div>
+
+</div>`,
+
+iconSize:[30,30],
+iconAnchor:[15,15]
+
+})
+
+if(busMarkers[ordem]){
+
+busMarkers[ordem].setLatLng([lat,lon])
+
+}else{
+
+busMarkers[ordem]=L.marker([lat,lon],{icon:icon})
+
+.addTo(map)
+
+.bindPopup(`Linha ${linha}<br>Ordem ${ordem}`)
+
+}
+
+})
+
+}
+
+function locate(){
+
+navigator.geolocation.getCurrentPosition(
+
+initMap,
+
+err=>alert("Não foi possível obter sua localização")
+
+)
+
+}
+
+locate()
+
+</script>
+
 </body>
 </html>
