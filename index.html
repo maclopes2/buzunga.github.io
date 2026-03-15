@@ -80,28 +80,17 @@
             setInterval(updateBuses, 15000);
         }
 
-        function updateBuses() {
-    const apiRio = 'https://dados.mobilidade.rio/gps/sppo?output=json';
-    
-    // Testando com um proxy alternativo:
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiRio)}`;
+function updateBuses() {
+    // Substitua pela URL que o Cloudflare gerou para você:
+    const minhaUrlWorker = "https://flat-meadow-e697.maclopes2.workers.dev/";
 
-    console.log("Tentando buscar dados via CORS Proxy...");
-    
-    axios.get(proxyUrl)
-        .then(function (response) {
-            // O corsproxy.io entrega o JSON direto, igual ao AllOrigins /raw
+    axios.get(minhaUrlWorker)
+        .then(function(response) {
             busesData = response.data;
             renderBuses();
         })
-        .catch(function (error) {
-            console.error("Erro na requisição:", error);
-            // Se falhar, tentamos o AllOrigins como plano B
-            const fallbackUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiRio)}`;
-            axios.get(fallbackUrl).then(res => {
-                busesData = res.data;
-                renderBuses();
-            });
+        .catch(function(error) {
+            console.log("Erro no Worker:", error);
         });
 }
 
