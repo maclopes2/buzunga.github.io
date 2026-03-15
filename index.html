@@ -95,8 +95,8 @@ return "#"+Math.floor(Math.random()*16777215).toString(16)
 
 function initMap(position){
 
-let lat=parseFloat(bus.latitude.replace(",","."))
-let lon=parseFloat(bus.longitude.replace(",","."))
+let lat = parseFloat((bus.latitude || bus.lat).replace(",","."))
+let lon = parseFloat((bus.longitude || bus.lon).replace(",","."))
 
 map=L.map("map").setView([lat,lon],14)
 
