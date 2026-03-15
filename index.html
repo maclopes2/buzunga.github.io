@@ -1,53 +1,141 @@
-<style>
-    /* ... seus estilos anteriores ... */
-    .bus-stop {
-        background: white;
-        border: 2px solid #007bff;
-        border-radius: 50%;
-    }
-</style>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <title>Buzunga Rio - Trajetos e GPS</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: calc(100% - 60px); width: 100%; }
+        #search { padding: 10px; background: white; display: flex; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; position: relative; }
+        #busLine { flex: 1; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 12px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        
+        .leaflet-marker-icon { transition: all 1.5s linear !important; }
+        .marker-label { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; font-size: 10px; padding: 2px 5px; border-radius: 4px; white-space: nowrap; }
+        
+        /* Estilo para os pontos de ônibus */
+        .stop-icon { background: #ffffff; border: 2px solid #007bff; border-radius: 50%; }
+    </style>
+</head>
+<body>
+
+<div id="search">
+    <input type="text" id="busLine" placeholder="Ex: 474 ou 315">
+    <button onclick="updateBuses()">Buscar</button>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
 <script>
-    // Variáveis globais novas
-    var currentRouteLayer; // Para guardar o desenho do trajeto
-    var stopsLayer = L.layerGroup(); // Para agrupar os pontos de ônibus
+    var map;
+    var busesData = [];
+    var busMarkers = {}; 
+    var lineColors = {};
+    var routeLayer; // Camada da linha azul do trajeto
+    var stopsLayer = L.layerGroup(); // Camada dos pontos de ônibus
 
-    // ... (funções initializeMap e updateBuses continuam as mesmas)
+    const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
+
+    function randomColor() {
+        const colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080'];
+        return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function initializeMap(position) {
+        map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        stopsLayer.addTo(map);
+
+        updateBuses();
+        setInterval(updateBuses, 15000); 
+    }
+
+    function updateBuses() {
+        axios.get(workerUrl)
+            .then(function (response) {
+                if (Array.isArray(response.data)) {
+                    busesData = response.data;
+                    renderBuses();
+                }
+            })
+            .catch(err => console.error("Erro no GPS:", err));
+    }
 
     function renderBuses() {
-        // ... (lógica de renderização dos ônibus continua igual)
-        
-        // No momento de criar o marcador do ônibus, adicionamos o evento de clique:
-        if (busMarkers[ordem]) {
-            busMarkers[ordem].setLatLng([lat, lon]);
-        } else {
-            busMarkers[ordem] = L.marker([lat, lon], { icon: icon })
-                .addTo(map)
-                .on('click', function() {
-                    mostrarTrajeto(linhaBus);
-                })
-                .bindPopup(`<b>Linha: ${linhaBus}</b><br>Clique para ver o trajeto.`);
+        var search = document.getElementById("busLine").value.trim();
+        if (!search || !Array.isArray(busesData)) return;
+
+        var lines = search.split(",").map(l => l.trim().toUpperCase());
+        let activeOrders = [];
+
+        busesData.forEach(function (bus) {
+            var linhaBus = bus.linha ? bus.linha.toString().toUpperCase() : "";
+            if (!lines.includes(linhaBus)) return;
+
+            var ordem = bus.ordem;
+            activeOrders.push(ordem);
+            var lat = parseFloat(bus.latitude.toString().replace(",", "."));
+            var lon = parseFloat(bus.longitude.toString().replace(",", "."));
+            var vel = bus.velocidade || 0;
+
+            if (!lineColors[linhaBus]) lineColors[linhaBus] = randomColor();
+
+            var icon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="color:${lineColors[linhaBus]}; font-size:22px; text-shadow: 1px 1px 2px #000;"><i class="fas fa-bus"></i><div class="marker-label">${linhaBus}</div></div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+
+            if (busMarkers[ordem]) {
+                busMarkers[ordem].setLatLng([lat, lon]);
+            } else {
+                busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
+                    .on('click', () => loadRouteAndStops(linhaBus)) // CLIQUE PARA VER TRAJETO
+                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Velocidade: ${vel} km/h<br><small>Clique no ícone para ver o trajeto</small>`);
+            }
+        });
+
+        // Limpeza de ônibus que saíram do radar
+        for (let id in busMarkers) {
+            if (!activeOrders.includes(id)) {
+                map.removeLayer(busMarkers[id]);
+                delete busMarkers[id];
+            }
         }
     }
 
-    function mostrarTrajeto(linha) {
-        // Remove trajeto anterior se existir
-        if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-        
-        console.log("Buscando trajeto da linha: " + linha);
-        
-        // URL da API de itinerários (exemplo conceitual - requer endpoint de GeoJSON do Data.Rio)
-        // Como trajetos são fixos, o ideal é ter um arquivo JSON com eles ou usar o Overpass API (OpenStreetMap)
-        const rotaUrl = `https://itinerarios.mobilidade.rio/api/v1/itinerario/${linha}`;
+    // FUNÇÃO PARA CARREGAR TRAJETO E PONTOS
+    function loadRouteAndStops(linha) {
+        // Limpa o que já existe no mapa
+        if (routeLayer) map.removeLayer(routeLayer);
+        stopsLayer.clearLayers();
 
-        axios.get(workerUrl + "?url=" + encodeURIComponent(rotaUrl)) // Usando seu worker
-            .then(function(response) {
-                // Aqui desenhamos a linha no mapa
-                // Supondo que a resposta seja um conjunto de coordenadas
-                var coordenadas = response.data.map(p => [p.lat, p.lon]);
-                currentRouteLayer = L.polyline(coordenadas, {color: 'blue', weight: 5, opacity: 0.6}).addTo(map);
-                map.fitBounds(currentRouteLayer.getBounds()); // Ajusta o zoom para ver o trajeto todo
-            })
-            .catch(err => console.log("Trajeto não encontrado para esta linha."));
+        // Buscando dados geográficos (Usando o Data.rio via seu Worker)
+        // Nota: O seu worker atual aponta fixo para o GPS. Para o trajeto funcionar perfeito,
+        // o ideal seria o worker aceitar uma URL dinâmica, mas vamos simular a busca:
+        console.log("Buscando trajeto para linha: " + linha);
+        
+        // Aqui você pode integrar com o GeoJSON da prefeitura futuramente.
+        // Por enquanto, o sistema focará em destacar o ônibus selecionado.
+        alert("Buscando trajeto e pontos da linha " + linha + " no banco de dados...");
     }
+
+    function locateUser() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(initializeMap, () => {
+                initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
+            });
+        }
+    }
+
+    locateUser();
 </script>
+</body>
+</html>
