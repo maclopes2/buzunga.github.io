@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Buzunga Rio - Encontre seu ônibus</title>
+
+<title>Buzunga Rio</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -17,21 +18,26 @@ margin:0;
 }
 
 #map{
-height:calc(100% - 60px);
+height:calc(100% - 70px);
 }
 
 #search{
-padding:10px;
 background:white;
+padding:10px;
 display:flex;
 gap:10px;
 box-shadow:0 2px 5px rgba(0,0,0,0.2);
 }
 
-.custom-marker{
-display:flex;
-align-items:center;
-justify-content:center;
+#busLine{
+flex:1;
+padding:8px;
+font-size:16px;
+}
+
+button{
+padding:8px 12px;
+cursor:pointer;
 }
 
 .marker-label{
@@ -39,21 +45,30 @@ position:absolute;
 top:22px;
 left:50%;
 transform:translateX(-50%);
-background:#000;
+background:black;
 color:white;
 font-size:11px;
 padding:2px 4px;
 border-radius:4px;
 }
 
+.stop{
+background:blue;
+border-radius:50%;
+width:8px;
+height:8px;
+}
+
 </style>
+
 </head>
 
 <body>
 
 <div id="search">
 
-<input id="busLine" placeholder="Digite as linhas (ex: 474,315)">
+<input id="busLine" list="lines" placeholder="Digite a linha (ex: 474)">
+<datalist id="lines"></datalist>
 
 <button onclick="filterBuses()">Buscar</button>
 
@@ -62,7 +77,6 @@ border-radius:4px;
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
 <script>
@@ -70,6 +84,7 @@ border-radius:4px;
 let map
 let busesData=[]
 let busMarkers={}
+let stops=[]
 let lineColors={}
 
 function randomColor(){
@@ -78,18 +93,20 @@ return "#"+Math.floor(Math.random()*16777215).toString(16)
 
 }
 
-function initMap(pos){
+function initMap(position){
 
-let lat=pos.coords.latitude
-let lng=pos.coords.longitude
+let lat=position.coords.latitude
+let lon=position.coords.longitude
 
-map=L.map('map').setView([lat,lng],14)
+map=L.map("map").setView([lat,lon],14)
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-attribution:'© OpenStreetMap'
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+attribution:"© OpenStreetMap"
 }).addTo(map)
 
-L.marker([lat,lng]).addTo(map).bindPopup("Sua localização")
+L.marker([lat,lon]).addTo(map).bindPopup("Você está aqui")
+
+loadStops(lat,lon)
 
 updateBuses()
 
@@ -105,6 +122,8 @@ axios.get("https://dados.mobilidade.rio/gps/sppo")
 
 busesData=res.data
 
+updateAutocomplete()
+
 filterBuses()
 
 })
@@ -113,23 +132,45 @@ filterBuses()
 
 }
 
+function updateAutocomplete(){
+
+let lines=[...new Set(busesData.map(b=>b.linha))]
+
+let datalist=document.getElementById("lines")
+
+datalist.innerHTML=""
+
+lines.forEach(line=>{
+
+let option=document.createElement("option")
+
+option.value=line
+
+datalist.appendChild(option)
+
+})
+
+}
+
 function filterBuses(){
 
 let search=document.getElementById("busLine").value.trim()
 
-if(search==="") return
+if(!search) return
 
 let lines=search.split(",").map(l=>l.trim())
 
-let filtered=busesData.filter(bus=>lines.includes(bus.linha))
+busesData.forEach(bus=>{
 
-filtered.forEach(bus=>{
+if(!lines.includes(bus.linha)) return
+
+let lat=parseFloat(bus.latitude)
+let lon=parseFloat(bus.longitude)
 
 let ordem=bus.ordem
 let linha=bus.linha
 
-let lat=parseFloat(bus.latitude)
-let lon=parseFloat(bus.longitude)
+let direction=bus.direcao || 0
 
 if(!lineColors[linha]){
 
@@ -141,9 +182,9 @@ let icon=L.divIcon({
 
 html:
 
-`<div class="custom-marker">
+`<div style="transform:rotate(${direction}deg);color:${lineColors[linha]};font-size:20px">
 
-<i class="fas fa-bus" style="color:${lineColors[linha]};font-size:18px"></i>
+<i class="fas fa-bus"></i>
 
 <div class="marker-label">${linha}</div>
 
@@ -160,11 +201,9 @@ busMarkers[ordem].setLatLng([lat,lon])
 
 }else{
 
-busMarkers[ordem]=L.marker([lat,lon],{icon:icon})
+busMarkers[ordem]=L.marker([lat,lon],{icon}).addTo(map)
 
-.addTo(map)
-
-.bindPopup(`Linha ${linha}<br>Ordem ${ordem}`)
+.bindPopup("Linha: "+linha+"<br>Ônibus: "+ordem)
 
 }
 
@@ -172,15 +211,66 @@ busMarkers[ordem]=L.marker([lat,lon],{icon:icon})
 
 }
 
+async function loadStops(lat,lon){
+
+let query=`
+[out:json];
+node
+["highway"="bus_stop"]
+(around:300,${lat},${lon});
+out;
+`
+
+let url="https://overpass-api.de/api/interpreter?data="+encodeURIComponent(query)
+
+let res=await fetch(url)
+
+let data=await res.json()
+
+data.elements.forEach(stop=>{
+
+let marker=L.circleMarker([stop.lat,stop.lon],{
+
+radius:5,
+color:"blue"
+
+}).addTo(map)
+
+marker.bindPopup("Ponto de ônibus")
+
+})
+
+}
+
+function estimateArrival(busLat,busLon,stopLat,stopLon){
+
+let distance=map.distance([busLat,busLon],[stopLat,stopLon])
+
+let speed=20
+
+let time=(distance/1000)/speed*60
+
+return time.toFixed(1)
+
+}
+
 function locate(){
+
+if(navigator.geolocation){
 
 navigator.geolocation.getCurrentPosition(
 
 initMap,
 
-err=>alert("Não foi possível obter sua localização")
+()=>alert("Não foi possível obter localização")
 
 )
+
+}else{
+
+alert("Seu navegador não suporta geolocalização")
+
+}
 
 }
 
