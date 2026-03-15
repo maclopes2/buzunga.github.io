@@ -1,56 +1,93 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <title>Buzunga Rio - GPS</title>
+    <title>Buzunga Rio - GPS em Tempo Real</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
-        #map { height: calc(100% - 60px); width: 100%; }
-        #search { padding: 10px; background: white; display: flex; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; position: relative; }
-        #busLine { flex: 1; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
-        button { padding: 8px 12px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        body, html { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; }
+        #map { height: calc(100% - 70px); width: 100%; background: #e5e3df; }
         
-        /* ESTILO DO ÍCONE CIRCULAR */
-        .bus-wrapper {
+        #search-container { 
+            height: 70px;
+            padding: 10px; 
+            background: #fff; 
+            display: flex; 
+            align-items: center;
+            gap: 10px; 
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1); 
+            z-index: 1000; 
+            position: relative; 
+        }
+
+        #busLine { 
+            flex: 1; 
+            padding: 12px; 
+            font-size: 16px; 
+            border: 2px solid #eee; 
+            border-radius: 8px; 
+            outline: none;
+        }
+
+        #busLine:focus { border-color: #28a745; }
+
+        button { 
+            padding: 12px 18px; 
+            cursor: pointer; 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            text-transform: uppercase;
+        }
+
+        /* Marcador Circular Moderno */
+        .bus-marker {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
 
         .bus-circle {
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             background: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-            border: 2px solid;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+            border: 3px solid;
             font-size: 16px;
+            transition: all 0.3s;
         }
 
-        .bus-tag {
-            background: rgba(0,0,0,0.8);
+        .bus-label {
+            background: #333;
             color: white;
-            font-size: 10px;
-            padding: 1px 4px;
-            border-radius: 3px;
-            margin-top: -2px;
+            font-size: 11px;
             font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: -5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             white-space: nowrap;
+            z-index: 10;
         }
 
-        .leaflet-marker-icon { transition: all 1.5s linear !important; }
+        /* Suavização do movimento */
+        .leaflet-marker-icon { 
+            transition: all 1.5s linear !important; 
+        }
     </style>
 </head>
 <body>
 
-<div id="search">
-    <input type="text" id="busLine" placeholder="Digite a linha (ex: 474,315)">
+<div id="search-container">
+    <input type="text" id="busLine" placeholder="Linha (ex: 474, 315)">
     <button onclick="updateBuses()">Buscar</button>
 </div>
 
@@ -63,94 +100,106 @@
     var map;
     var busMarkers = {}; 
     var lineColors = {};
-    // Usei o seu Worker direto, sem o corsproxy.io que deu erro 403
     const workerUrl = "https://flat-meadow-e697.maclopes2.workers.dev/";
 
-    function randomColor() {
-        const colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#008080', '#f032e6'];
-        return colors[Math.floor(Math.random() * colors.length)];
+    function getColor(line) {
+        if (!lineColors[line]) {
+            const palette = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#008080', '#f032e6'];
+            lineColors[line] = palette[Object.keys(lineColors).length % palette.length];
+        }
+        return lineColors[line];
     }
 
-    function initializeMap(position) {
-        map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-        
-        L.marker([position.coords.latitude, position.coords.longitude]).addTo(map).bindPopup("Você");
+    function initMap(pos) {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
 
-        updateBuses();
-        setInterval(updateBuses, 15000); 
+        if (!map) {
+            map = L.map('map').setView([lat, lon], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            
+            // Marcador do usuário (Círculo azul)
+            L.circleMarker([lat, lon], {
+                radius: 8, color: 'white', fillColor: '#007bff', fillOpacity: 1, weight: 2
+            }).addTo(map).bindPopup("Você está aqui");
+
+            setInterval(updateBuses, 15000);
+        }
     }
 
     function updateBuses() {
+        const input = document.getElementById("busLine").value.trim().toUpperCase();
+        if (!input) return;
+
+        const targetLines = input.split(",").map(s => s.trim());
+
         axios.get(workerUrl)
-            .then(function (response) {
-                // Tratamento para garantir que response.data seja um array
-                const data = Array.isArray(response.data) ? response.data : [];
-                renderBuses(data);
+            .then(res => {
+                // Tratamento seguro para diferentes formatos de JSON
+                const rawData = res.data;
+                const buses = Array.isArray(rawData) ? rawData : (rawData.rows || []);
+                renderMarkers(buses, targetLines);
             })
-            .catch(err => console.error("Erro ao carregar ônibus:", err));
+            .catch(err => console.error("Erro na busca:", err));
     }
 
-    function renderBuses(buses) {
-        var search = document.getElementById("busLine").value.trim().toUpperCase();
-        if (!search) return;
+    function renderMarkers(buses, targetLines) {
+        let currentOrders = [];
 
-        var lines = search.split(",").map(l => l.trim());
-        let activeOrders = [];
+        buses.forEach(bus => {
+            const line = (bus.linha || "").toString().toUpperCase();
+            if (!targetLines.includes(line)) return;
 
-        buses.forEach(function (bus) {
-            var linhaBus = (bus.linha || "").toString().toUpperCase();
-            if (!lines.includes(linhaBus)) return;
+            const id = bus.ordem;
+            currentOrders.push(id);
 
-            var ordem = bus.ordem;
-            activeOrders.push(ordem);
+            const lat = parseFloat(bus.latitude.toString().replace(",", "."));
+            const lon = parseFloat(bus.longitude.toString().replace(",", "."));
+            if (isNaN(lat) || isNaN(lon)) return;
 
-            var lat = parseFloat(bus.latitude.toString().replace(",", "."));
-            var lon = parseFloat(bus.longitude.toString().replace(",", "."));
-
-            if (!lineColors[linhaBus]) lineColors[linhaBus] = randomColor();
-
-            var iconHtml = `
-                <div class="bus-wrapper">
-                    <div class="bus-circle" style="border-color: ${lineColors[linhaBus]}; color: ${lineColors[linhaBus]};">
+            const color = getColor(line);
+            const iconHtml = `
+                <div class="bus-marker">
+                    <div class="bus-circle" style="border-color: ${color}; color: ${color};">
                         <i class="fas fa-bus"></i>
                     </div>
-                    <div class="bus-tag">${linhaBus}</div>
-                </div>
-            `;
+                    <div class="bus-label">${line}</div>
+                </div>`;
 
-            var icon = L.divIcon({
-                className: 'custom-icon',
+            const icon = L.divIcon({
+                className: 'custom-div',
                 html: iconHtml,
-                iconSize: [30, 42],
-                iconAnchor: [15, 30]
+                iconSize: [40, 40],
+                iconAnchor: [20, 40]
             });
 
-            if (busMarkers[ordem]) {
-                busMarkers[ordem].setLatLng([lat, lon]);
+            if (busMarkers[id]) {
+                busMarkers[id].setLatLng([lat, lon]);
             } else {
-                busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
-                    .bindPopup(`<b>Linha: ${linhaBus}</b><br>Ordem: ${ordem}`);
+                busMarkers[id] = L.marker([lat, lon], { icon: icon }).addTo(map)
+                    .bindPopup(`<b>Linha: ${line}</b><br>Ônibus: ${id}`);
             }
         });
 
-        for (let id in busMarkers) {
-            if (!activeOrders.includes(id)) {
+        // Remove ônibus que sumiram do GPS
+        Object.keys(busMarkers).forEach(id => {
+            if (!currentOrders.includes(id)) {
                 map.removeLayer(busMarkers[id]);
                 delete busMarkers[id];
             }
-        }
+        });
     }
 
-    function locateUser() {
+    function startLocation() {
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(initializeMap, () => {
-                initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
-            });
+            navigator.geolocation.getCurrentPosition(initMap, () => {
+                // Fallback: Centro do Rio se o GPS falhar
+                initMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
+            }, { enableHighAccuracy: true, timeout: 10000 });
         }
     }
 
-    locateUser();
+    startLocation();
 </script>
 </body>
 </html>
