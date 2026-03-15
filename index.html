@@ -114,21 +114,23 @@ setInterval(updateBuses,15000)
 
 }
 
-function updateBuses(){
+function updateBuses() {
 
 axios.get('https://dados.mobilidade.rio/gps/sppo?output=json')
 
-.then(res=>{
+.then(function (response) {
 
-busesData=res.data
+busesData = response.data;
 
-updateAutocomplete()
-
-filterBuses()
+filterBuses();
 
 })
 
-.catch(err=>console.log(err))
+.catch(function (error) {
+
+console.log("Erro ao carregar ônibus:", error);
+
+});
 
 }
 
