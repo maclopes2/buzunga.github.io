@@ -116,7 +116,7 @@ setInterval(updateBuses,15000)
 
 function updateBuses(){
 
-axios.get("https://api.allorigins.win/raw?url=https://dados.mobilidade.rio/gps/sppo")
+axios.get('https://dados.mobilidade.rio/gps/sppo?output=json')
 
 .then(res=>{
 
