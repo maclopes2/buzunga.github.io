@@ -18,11 +18,25 @@
         .leaflet-marker-icon { transition: all 1.5s linear !important; }
 
         .bus-marker-dot {
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 12px; color: white; font-weight: bold; font-size: 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4); border: 2px solid white;
-            white-space: nowrap; padding: 2px 8px; text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
-        }
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50% 50% 50% 0; /* Cria o efeito gota */
+    transform: rotate(-45deg);    /* Rotaciona para a ponta ficar para baixo */
+    color: white;
+    font-weight: bold;
+    font-size: 11px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    border: 2px solid white;
+}
+
+/* Ajuste para o texto não ficar torto dentro da gota rotacionada */
+.bus-marker-dot span {
+    transform: rotate(45deg);
+    display: inline-block;
+}
     </style>
 </head>
 <body>
@@ -95,10 +109,14 @@
 
             const color = getColor(linhaBus);
             const icon = L.divIcon({
-                className: '', 
-                html: `<div class="bus-marker-dot" style="background-color: ${color};">${linhaBus}</div>`,
-                iconSize: [45, 24], iconAnchor: [22, 12] 
-            });
+    className: '', 
+    // Adicionamos um <span> para desvirar o texto que o CSS rotacionou
+    html: `<div class="bus-marker-dot" style="background-color: ${color};">
+                <span>${linhaBus}</span>
+           </div>`,
+    iconSize: [30, 30], 
+    iconAnchor: [15, 30] // A ponta da gota (embaixo) agora é o centro real
+});
 
             if (busMarkers[ordem]) {
                 busMarkers[ordem].setLatLng([lat, lon]);
