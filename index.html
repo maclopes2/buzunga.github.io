@@ -21,33 +21,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Tamanho do pin */
-    width: 34px; 
-    height: 34px;
-    /* Formato gota */
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
-    
+    width: 30px;
+    height: 30px;
+    border-radius: 50% 50% 50% 0; /* Cria o efeito gota */
+    transform: rotate(-45deg);    /* Rotaciona para a ponta ficar para baixo */
     color: white;
     font-weight: bold;
     font-size: 11px;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
     border: 2px solid white;
-    /* Garante que o CSS não corte o texto */
-    overflow: visible; 
 }
 
-/* Ajuste preciso do texto para centralizar na parte redonda */
+/* Ajuste para o texto não ficar torto dentro da gota rotacionada */
 .bus-marker-dot span {
     transform: rotate(45deg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    /* Pequeno ajuste fino vertical (pode variar 1px dependendo da fonte) */
-    margin-top: -1px; 
-    margin-left: -1px;
+    display: inline-block;
 }
     </style>
 </head>
@@ -122,17 +110,12 @@
             const color = getColor(linhaBus);
             const icon = L.divIcon({
     className: '', 
-    // Usamos span para centralizar o texto
+    // Adicionamos um <span> para desvirar o texto que o CSS rotacionou
     html: `<div class="bus-marker-dot" style="background-color: ${color};">
                 <span>${linhaBus}</span>
            </div>`,
-    // Tamanho total do container do ícone (deve ser igual ao width/height do CSS)
-    iconSize: [34, 34], 
-    // A MÁGICA ESTÁ AQUI:
-    // iconAnchor: [X, Y]
-    // X = Metade da largura (para centralizar horizontalmente)
-    // Y = Altura total (para a ponta de baixo ser o ponto de ancoragem)
-    iconAnchor: [17, 34] 
+    iconSize: [30, 30], 
+    iconAnchor: [15, 30] // A ponta da gota (embaixo) agora é o centro real
 });
 
             if (busMarkers[ordem]) {
