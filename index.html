@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <title>Buzunga Rio - Gota Style</title>
+    <title>Buzunga Rio</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         body, html { height: 100%; margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; }
         #map { height: calc(100% - 60px); width: 100%; }
@@ -16,37 +17,31 @@
         /* Suavização do movimento */
         .leaflet-marker-icon { transition: all 1.5s linear !important; }
 
-        /* Estilo Gota (Pin) */
-        .bus-marker-container {
+        /* Novo estilo para o container do ícone */
+        .bus-icon-container {
             display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .bus-marker-drop {
-            width: 34px;
-            height: 34px;
-            border-radius: 50% 50% 50% 0;
-            background: #28a745;
-            position: absolute;
-            transform: rotate(-45deg);
-            border: 2px solid #ffffff;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-            display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
         }
 
-        /* Desvira o texto para ficar reto */
-        .bus-marker-drop span {
-            transform: rotate(45deg);
-            color: white;
+        /* O ícone do ônibus em si */
+        .bus-icon-main {
+            font-size: 24px;
+            text-shadow: 0 0 3px white;
+            filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3));
+        }
+
+        /* O rótulo com o número da linha */
+        .bus-label {
+            background: white;
+            color: #333;
             font-weight: bold;
             font-size: 11px;
-            text-align: center;
-            width: 100%;
-            margin-top: -2px; /* Ajuste fino de centralização */
-            margin-left: -2px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            border: 1px solid #666;
+            margin-top: -2px;
             white-space: nowrap;
         }
     </style>
@@ -54,7 +49,7 @@
 <body>
 
 <div id="search">
-    <input type="text" id="busLine" placeholder="Linha (ex: 474, 315, 483)">
+    <input type="text" id="busLine" placeholder="Linha (ex: 474 ou 315, 483)">
     <button onclick="updateBuses()">Buscar</button>
 </div>
 
@@ -81,11 +76,11 @@
         if (!map) {
             map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            
             L.circleMarker([position.coords.latitude, position.coords.longitude], {
                 radius: 8, color: 'white', fillColor: '#007bff', fillOpacity: 1, weight: 3
             }).addTo(map).bindPopup("Você");
             
+            updateBuses();
             setInterval(updateBuses, 15000); 
         }
     }
@@ -100,7 +95,7 @@
                 const buses = Array.isArray(data) ? data : (data.veiculos || data.rows || []);
                 renderBuses(buses, searchInput);
             })
-            .catch(err => console.error("Erro na busca:", err));
+            .catch(err => console.error("Erro no redirecionador:", err));
     }
 
     function renderBuses(busesData, searchInput) {
@@ -120,21 +115,20 @@
 
             const color = getColor(linhaBus);
             
-            // Ícone estilo gota corrigido
+            // CRIAÇÃO DO NOVO ÍCONE DE ÔNIBUS
             const icon = L.divIcon({
-                className: 'bus-marker-container', 
-                html: `<div class="bus-marker-drop" style="background-color: ${color};">
-                            <span>${linhaBus}</span>
-                       </div>`,
-                iconSize: [34, 34],
-                // iconAnchor [x, y]: 17 é o meio da largura, 34 é o fundo (ponta da gota)
-                iconAnchor: [17, 34],
-                popupAnchor: [0, -34]
+                className: 'bus-icon-container', 
+                html: `
+                    <i class="fas fa-bus bus-icon-main" style="color: ${color};"></i>
+                    <div class="bus-label">${linhaBus}</div>
+                `,
+                iconSize: [40, 40], 
+                iconAnchor: [20, 20] 
             });
 
             if (busMarkers[ordem]) {
                 busMarkers[ordem].setLatLng([lat, lon]);
-                // Opcional: atualizar o ícone caso a linha mude
+                // Atualiza o ícone caso a cor mude ou precise forçar re-render
                 busMarkers[ordem].setIcon(icon);
             } else {
                 busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
@@ -142,7 +136,6 @@
             }
         });
 
-        // Remover ônibus que sumiram do radar
         for (let id in busMarkers) {
             if (!activeOrders.includes(id)) {
                 map.removeLayer(busMarkers[id]);
@@ -156,8 +149,6 @@
             navigator.geolocation.getCurrentPosition(initializeMap, function () {
                 initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
             });
-        } else {
-            initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
         }
     }
 
