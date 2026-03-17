@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <title>Buzunga Rio</title>
+    <title>Buzunga Rio - Gota Style</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         body, html { height: 100%; margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; }
         #map { height: calc(100% - 60px); width: 100%; }
@@ -17,32 +16,45 @@
         /* Suavização do movimento */
         .leaflet-marker-icon { transition: all 1.5s linear !important; }
 
-        .bus-marker-dot {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 50% 50% 50% 0; /* Cria o efeito gota */
-    transform: rotate(-45deg);    /* Rotaciona para a ponta ficar para baixo */
-    color: white;
-    font-weight: bold;
-    font-size: 11px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    border: 2px solid white;
-}
+        /* Estilo Gota (Pin) */
+        .bus-marker-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-/* Ajuste para o texto não ficar torto dentro da gota rotacionada */
-.bus-marker-dot span {
-    transform: rotate(45deg);
-    display: inline-block;
-}
+        .bus-marker-drop {
+            width: 34px;
+            height: 34px;
+            border-radius: 50% 50% 50% 0;
+            background: #28a745;
+            position: absolute;
+            transform: rotate(-45deg);
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Desvira o texto para ficar reto */
+        .bus-marker-drop span {
+            transform: rotate(45deg);
+            color: white;
+            font-weight: bold;
+            font-size: 11px;
+            text-align: center;
+            width: 100%;
+            margin-top: -2px; /* Ajuste fino de centralização */
+            margin-left: -2px;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
 
 <div id="search">
-    <input type="text" id="busLine" placeholder="Linha (ex: 474 ou 315, 483)">
+    <input type="text" id="busLine" placeholder="Linha (ex: 474, 315, 483)">
     <button onclick="updateBuses()">Buscar</button>
 </div>
 
@@ -69,11 +81,11 @@
         if (!map) {
             map = L.map('map').setView([position.coords.latitude, position.coords.longitude], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            
             L.circleMarker([position.coords.latitude, position.coords.longitude], {
                 radius: 8, color: 'white', fillColor: '#007bff', fillOpacity: 1, weight: 3
             }).addTo(map).bindPopup("Você");
             
-            updateBuses();
             setInterval(updateBuses, 15000); 
         }
     }
@@ -84,12 +96,11 @@
 
         axios.get(workerUrl)
             .then(function (response) {
-                // Como o worker agora apenas redireciona, pegamos o array bruto
                 const data = response.data;
                 const buses = Array.isArray(data) ? data : (data.veiculos || data.rows || []);
                 renderBuses(buses, searchInput);
             })
-            .catch(err => console.error("Erro no redirecionador:", err));
+            .catch(err => console.error("Erro na busca:", err));
     }
 
     function renderBuses(busesData, searchInput) {
@@ -108,24 +119,30 @@
             if (isNaN(lat) || isNaN(lon)) return;
 
             const color = getColor(linhaBus);
+            
+            // Ícone estilo gota corrigido
             const icon = L.divIcon({
-    className: '', 
-    // Adicionamos um <span> para desvirar o texto que o CSS rotacionou
-    html: `<div class="bus-marker-dot" style="background-color: ${color};">
-                <span>${linhaBus}</span>
-           </div>`,
-    iconSize: [30, 30], 
-    iconAnchor: [15, 30] // A ponta da gota (embaixo) agora é o centro real
-});
+                className: 'bus-marker-container', 
+                html: `<div class="bus-marker-drop" style="background-color: ${color};">
+                            <span>${linhaBus}</span>
+                       </div>`,
+                iconSize: [34, 34],
+                // iconAnchor [x, y]: 17 é o meio da largura, 34 é o fundo (ponta da gota)
+                iconAnchor: [17, 34],
+                popupAnchor: [0, -34]
+            });
 
             if (busMarkers[ordem]) {
                 busMarkers[ordem].setLatLng([lat, lon]);
+                // Opcional: atualizar o ícone caso a linha mude
+                busMarkers[ordem].setIcon(icon);
             } else {
                 busMarkers[ordem] = L.marker([lat, lon], { icon: icon }).addTo(map)
                     .bindPopup(`<b>Linha: ${linhaBus}</b><br>Prefixo: ${ordem}`);
             }
         });
 
+        // Remover ônibus que sumiram do radar
         for (let id in busMarkers) {
             if (!activeOrders.includes(id)) {
                 map.removeLayer(busMarkers[id]);
@@ -139,6 +156,8 @@
             navigator.geolocation.getCurrentPosition(initializeMap, function () {
                 initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
             });
+        } else {
+            initializeMap({ coords: { latitude: -22.9068, longitude: -43.1729 } });
         }
     }
 
