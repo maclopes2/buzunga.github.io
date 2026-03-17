@@ -116,19 +116,15 @@
             const color = getColor(linhaBus);
             
             // CRIAÇÃO DO NOVO ÍCONE DE ÔNIBUS
-            const direcao = bus.direcao || 0; // Pega o ângulo da API (0 a 360)
-
-const icon = L.divIcon({
-    className: 'bus-icon-container', 
-    html: `
-        <div style="transform: rotate(${direcao}deg); display: inline-block;">
-            <i class="fas fa-bus bus-icon-main" style="color: ${color}; font-size: 20px;"></i>
-        </div>
-        <div class="bus-label">${linhaBus}</div>
-    `,
-    iconSize: [40, 45], 
-    iconAnchor: [20, 22] 
-});
+            const icon = L.divIcon({
+                className: 'bus-icon-container', 
+                html: `
+                    <i class="fas fa-bus bus-icon-main" style="color: ${color};"></i>
+                    <div class="bus-label">${linhaBus}</div>
+                `,
+                iconSize: [40, 40], 
+                iconAnchor: [20, 20] 
+            });
 
             if (busMarkers[ordem]) {
                 busMarkers[ordem].setLatLng([lat, lon]);
